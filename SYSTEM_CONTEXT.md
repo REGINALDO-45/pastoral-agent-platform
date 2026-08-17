@@ -19,6 +19,8 @@ O `ThanosContext` também carrega `platformRole` e `platformCapabilities` separa
 
 O núcleo dispõe de um planner READ interno para planos declarados de dois a cinco passos. Ele faz preflight de capabilities, recusa intenção `WRITE`, cria uma referência de contexto por passo e devolve fallback parcial determinístico em caso de falha. Cada evidência recebe proveniência de fonte, workspace, tenant, `requestId`, ferramenta e etapa; essa proveniência é metadado sanitizado e não representa armazenamento de prompt, áudio, transcrição ou segredo.
 
+Os contratos de canais são channel-agnostic: envelopes e respostas carregam canal, tipo de payload, `requestId`, workspace e tenant, enquanto a `channelPolicy` mantém uma allowlist explícita e pode ser READ-only. O núcleo conhece nomes de canais futuros para fins de validação, mas não configura WhatsApp, Slack, email, webhook ou credenciais externas; payloads não autorizados e eventos mutáveis são recusados antes da execução.
+
 ## Dados e privacidade
 
 | Dado | Tratamento |

@@ -26,6 +26,7 @@
 | ADR-022 | Adicionar planner READ genérico com plano declarado de 2–5 passos, preflight de capabilities, recusa de `WRITE`, contexto fresco por passo e fallback parcial determinístico. | Aprovada | O planner é uma porta interna independente do piloto de chat; ferramentas, capabilities, intenção e `requestId` são correlacionados por etapa, sem permitir tool arbitrária ou execução de escrita. |
 | ADR-023 | Generalizar evidência THÁNOS com proveniência de fonte, workspace, tenant, requestId, ferramenta e etapa, compondo somente dados sanitizados. | Aprovada | Planner e ferramentas READ podem produzir evidência auditável e agregada; o modelo não registra prompt privado, áudio, transcrição ou segredo de connector. |
 | ADR-024 | Modelar Confirmation Engine como máquina de estados interna: `pending`, `confirmed`, `duplicate`, `denied` e `failed`, com capability WRITE, confirmação explícita, escopo de tenant/workspace e idempotência. | Aprovada | A operação de escrita nunca é inferida pelo planner READ; a engine exige chave de idempotência e store injetável, deduplica concorrência e não cria nova rota pública nesta etapa. |
+| ADR-025 | Generalizar canais por envelopes, respostas e `channelPolicy` allowlisted, com correlação de requestId e identidades. | Aprovada | O contrato aceita canais futuros sem habilitá-los; payloads incompatíveis com a policy são recusados, e não há conexão com WhatsApp, Slack, email, webhook ou credenciais externas. |
 
 ## Decisões pendentes
 
