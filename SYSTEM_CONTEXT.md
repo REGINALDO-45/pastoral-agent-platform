@@ -21,6 +21,8 @@ O núcleo dispõe de um planner READ interno para planos declarados de dois a ci
 
 Os contratos de canais são channel-agnostic: envelopes e respostas carregam canal, tipo de payload, `requestId`, workspace e tenant, enquanto a `channelPolicy` mantém uma allowlist explícita e pode ser READ-only. O núcleo conhece nomes de canais futuros para fins de validação, mas não configura WhatsApp, Slack, email, webhook ou credenciais externas; payloads não autorizados e eventos mutáveis são recusados antes da execução.
 
+O Connector Registry é uma porta interna fechada: cada connector precisa de manifest, key na allowlist, capability compatível, canais e payloads permitidos, além de estar explicitamente habilitado. A execução mantém o `requestId` do contexto, recusa divergência de escopo, exige confirmação para `WRITE` e audita somente resultado sanitizado. Os connectors usados nos testes são mocks determinísticos e não representam integração externa ativa.
+
 ## Dados e privacidade
 
 | Dado | Tratamento |

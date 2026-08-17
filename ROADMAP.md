@@ -17,7 +17,7 @@
 | M13 | Evidência generalizada com proveniência sanitizada. | **Concluído no planner interno**; conectores reais continuam bloqueados. | Fonte, workspace, tenant, requestId, ferramenta e etapa compostos sem prompt privado, áudio, transcrição ou segredo. |
 | M14 | Confirmation Engine genérico e negativo. | **Concluído como contrato interno**; nenhuma nova operação pública ativada. | Máquina de estados, capability `agent:write`, confirmação explícita, escopo, store injetável, idempotência e concorrência testados. |
 | M15 | Contratos channel-agnostic e `channelPolicy`. | **Concluído como contrato interno**; sem adaptadores externos ativos. | Envelopes e respostas com requestId/identidades, allowlist de canais/payloads e negativos READ-only testados. |
-| M16 | Connector Registry governado com mocks. | **Próximo ciclo interno**, sem credenciais reais nesta branch. | Registry allowlisted, capability e channel policy verificadas antes de qualquer execução. |
+| M16 | Connector Registry governado com mocks. | **Concluído como contrato interno**, sem credenciais reais nesta branch. | Registry allowlisted, manifest, capability, channel policy, estado habilitado, auditoria sanitizada e negativa de WRITE sem confirmação testados. |
 | M17 | Rollout controlado de provedor externo. | **Futuro**, requer aprovação operacional. | Contrato Hermes validado, métricas de erro/latência aceitáveis e rollback exercitado. |
 
 ## Rollback
