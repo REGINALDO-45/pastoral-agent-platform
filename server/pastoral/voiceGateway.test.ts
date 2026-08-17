@@ -10,6 +10,7 @@ describe("Voice gateway", () => {
     let transcribedUrl = "";
     const result = await transcribeVoiceInput({
       context,
+      requestId: "voice-request-1",
       audioBytes: new Uint8Array([1, 2, 3]),
       mimeType: "audio/webm",
       storagePut: async (key) => ({ key, url: `/manus-storage/${key}` }),
@@ -19,7 +20,7 @@ describe("Voice gateway", () => {
     });
     expect(result).toEqual({ text: "Quantos visitantes temos?", provider: "built-in-whisper" });
     expect(transcribedUrl).toMatch(/^https:\/\/signed-storage\.local\//);
-    expect(audit).toContainEqual(expect.objectContaining({ action: "voice.transcribe", status: "success", model: "built-in-whisper" }));
+    expect(audit).toContainEqual(expect.objectContaining({ action: "voice.transcribe", status: "success", model: "built-in-whisper", requestId: "voice-request-1" }));
     expect(JSON.stringify(audit)).not.toContain("1,2,3");
   });
 

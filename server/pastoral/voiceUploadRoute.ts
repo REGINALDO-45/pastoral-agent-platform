@@ -1,8 +1,10 @@
+import { randomUUID } from "node:crypto";
 import type { Express, NextFunction, Request, Response } from "express";
 import multer from "multer";
 import { createContext } from "../_core/context";
 import { storageGetSignedUrl, storagePut } from "../storage";
 import { AgentCore } from "./agentCore";
+import { AgentGateway } from "./agentGateway";
 import { getOrCreateConversation, getTenantContextForUser, DatabasePastoralRepository } from "./repository";
 import { transcribeVoiceInput } from "./voiceGateway";
 import { getVoiceProvider } from "./voiceProvider";
@@ -60,8 +62,26 @@ export function createVoiceHistoryEntry(conversationId: number, context: TenantC
   };
 }
 
-export async function auditVoiceRejection(repository: Pick<PastoralRepository, "audit">, context: TenantContext, reason: string) {
-  await repository.audit({ context, action: "voice.upload", agent: "voice-upload", status: "denied", metadata: { reason } });
+type VoiceAgentResponder = Pick<AgentGateway, "respond">;
+
+export function respondToVoiceTranscript(input: {
+  gateway: VoiceAgentResponder;
+  context: TenantContext;
+  conversationId: number;
+  transcript: string;
+  requestId: string;
+}) {
+  return input.gateway.respond({
+    context: input.context,
+    conversationId: input.conversationId,
+    message: input.transcript,
+    persistUserMessage: false,
+    requestId: input.requestId,
+  });
+}
+
+export async function auditVoiceRejection(repository: Pick<PastoralRepository, "audit">, context: TenantContext, reason: string, requestId?: string) {
+  await repository.audit({ context, action: "voice.upload", agent: "voice-upload", requestId, status: "denied", metadata: { reason } });
 }
 
 async function uploadAndTranscribe(req: Request, res: Response) {
@@ -70,9 +90,10 @@ async function uploadAndTranscribe(req: Request, res: Response) {
 
   try {
     const context = await getTenantContextForUser(requestContext.user.id);
+    const requestId = randomUUID();
     const repository = new DatabasePastoralRepository();
     const reject = async (rejection: VoiceUploadRejection) => {
-      await auditVoiceRejection(repository, context, rejection.reason).catch(() => undefined);
+      await auditVoiceRejection(repository, context, rejection.reason, requestId).catch(() => undefined);
       return res.status(rejection.status).json({ error: rejection.error });
     };
     const file = req.file;
@@ -84,6 +105,7 @@ async function uploadAndTranscribe(req: Request, res: Response) {
     const audioBytes = new Uint8Array(file!.buffer);
     const transcript = await transcribeVoiceInput({
       context,
+      requestId,
       audioBytes,
       mimeType,
       storagePut: (key, data, contentType) => storagePut(key, data, contentType),
@@ -93,11 +115,13 @@ async function uploadAndTranscribe(req: Request, res: Response) {
     });
     const conversation = await getOrCreateConversation(context);
     await repository.appendMessage(createVoiceHistoryEntry(conversation.id, context));
-    const agentResponse = await new AgentCore(repository).respond({
+    const agentGateway = new AgentGateway(repository, new AgentCore(repository));
+    const agentResponse = await respondToVoiceTranscript({
+      gateway: agentGateway,
       context,
       conversationId: conversation.id,
-      message: transcript.text,
-      persistUserMessage: false,
+      transcript: transcript.text,
+      requestId,
     });
     await repository.audit({
       context,
@@ -105,8 +129,16 @@ async function uploadAndTranscribe(req: Request, res: Response) {
       agent: "voice-upload",
       model: agentResponse.model,
       tool: agentResponse.tool,
+      requestId,
       status: "success",
-      metadata: { mimeType, messageType: "voice", transcriptionProvider: transcript.provider, responseProvider: agentResponse.provider },
+      metadata: {
+        mimeType,
+        messageType: "voice",
+        transcriptionProvider: transcript.provider,
+        responseProvider: agentResponse.provider,
+        gatewayProvider: agentResponse.gateway?.provider,
+        gatewayFallback: agentResponse.gateway?.fallback,
+      },
     });
     res.set("Cache-Control", "no-store");
     return res.json({
@@ -135,7 +167,7 @@ export function registerVoiceUploadRoute(app: Express) {
         const requestContext = await createContext({ req, res } as Parameters<typeof createContext>[0]);
         if (requestContext.user) {
           const context = await getTenantContextForUser(requestContext.user.id);
-          await auditVoiceRejection(new DatabasePastoralRepository(), context, "payload_too_large");
+          await auditVoiceRejection(new DatabasePastoralRepository(), context, "payload_too_large", randomUUID());
         }
       } catch {
         console.warn("[Pastoral Voice] unable to audit rejected oversized upload");
