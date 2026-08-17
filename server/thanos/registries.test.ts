@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { thanosSkillRegistry, thanosWorkspaceRegistry } from "./defaultRegistries";
-import { toWorkspaceKey } from "./contextIdentity";
+import { toTenantId, toWorkspaceKey } from "./contextIdentity";
 import { SkillNotRegisteredError } from "./skillRegistry";
 import { WorkspaceNotRegisteredError } from "./workspaceRegistry";
 
@@ -50,6 +50,22 @@ describe("registros fechados do THÁNOS", () => {
     expect(skill.allowedChannels).toEqual(["chat"]);
     expect(skill.requiredCapabilities).toEqual(["agent:read"]);
     expect(skill.readOnly).toBe(true);
-    expect(thanosWorkspaceRegistry.list()).toHaveLength(1);
+    expect(thanosWorkspaceRegistry.list()).toHaveLength(2);
+  });
+
+  it("registra um segundo workspace sintético como skill READ-only sem importar o domínio Pastoral", () => {
+    const workspace = thanosWorkspaceRegistry.get("synthetic-operations");
+    const context = workspace.resolveContext({
+      tenantId: toTenantId("synthetic-tenant-a"),
+      userId: 42,
+      userName: "Usuário Sintético",
+      role: "reader",
+      channel: "chat",
+      requestId: "synthetic-bootstrap-1",
+    });
+    const skill = thanosSkillRegistry.getForWorkspace(context.workspaceKey, "synthetic-operations-readonly");
+
+    expect(context).toMatchObject({ workspaceKey: "synthetic-operations", tenantId: "synthetic-tenant-a", domain: "synthetic-operations", requestId: "synthetic-bootstrap-1" });
+    expect(skill).toMatchObject({ domain: "synthetic-operations", allowedTools: ["listar_pendencias_sinteticas"], allowedChannels: ["chat"], requiredCapabilities: ["agent:read"], readOnly: true });
   });
 });

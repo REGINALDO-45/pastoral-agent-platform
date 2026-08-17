@@ -35,6 +35,10 @@ export function tenantIdFromOrganizationId(organizationId: number): TenantId {
   return `org:${organizationId}` as TenantId;
 }
 
+export function toTenantId(value: string): TenantId {
+  return normalized(value, "tenantId") as TenantId;
+}
+
 export function createThanosContextIdentity(input: {
   workspaceKey: WorkspaceKey;
   tenantId: TenantId;

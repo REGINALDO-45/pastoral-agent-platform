@@ -3,6 +3,7 @@ import {
   createThanosContextIdentity,
   tenantIdFromOrganizationId,
   toDomain,
+  toTenantId,
   toWorkspaceKey,
 } from "./contextIdentity";
 
@@ -24,6 +25,11 @@ describe("identidade contextual THÁNOS", () => {
     expect(tenantIdFromOrganizationId(1)).toBe("org:1");
     expect(() => tenantIdFromOrganizationId(0)).toThrow("organizationId");
     expect(() => tenantIdFromOrganizationId(1.5)).toThrow("organizationId");
+  });
+
+  it("aceita tenantId textual para workspaces não acoplados a organizationId", () => {
+    expect(toTenantId("synthetic-tenant-a")).toBe("synthetic-tenant-a");
+    expect(() => toTenantId("  ")).toThrow("tenantId");
   });
 
   it("rejeita chaves e domínios vazios antes de compor contexto", () => {
