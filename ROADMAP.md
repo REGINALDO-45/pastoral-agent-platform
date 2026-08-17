@@ -12,7 +12,8 @@
 | M8 | Adoção controlada do THÁNOS pela rota pública de chat. | **Concluído**; desativada por padrão e limitada a texto READ elegível. | Flag, kill switch, audiência de tenant/usuário, telemetria sanitizada, fallback sem duplicação e rollback exercitado. |
 | M9 | Prova de generalidade multi-workspace do núcleo THÁNOS. | **Concluído como prova sintética**; sem nova rota pública ou dado pastoral. | Segundo workspace registrado, skill READ-only, tenant/domain distintos, executor determinístico e negativa de capability testados. |
 | M10 | Fundação de platform access com role/capabilities explícitos e deny-by-default. | **Concluído como contrato interno**; sem rota pública de superadmin ou assunção. | Separação tenant/platform, capabilities globais fechadas, negativos de role/capability e isolamento dos workspaces testados. |
-| M11 | Rollout controlado de provedor externo. | **Futuro**, requer aprovação operacional. | Contrato Hermes validado, métricas de erro/latência aceitáveis e rollback exercitado. |
+| M11 | Contrato de contexto assumido governado. | **Concluído como contrato interno**; sem execução cross-tenant ou alteração de membership. | Capability `platform:tenant:assume`, diretório de existência, auditoria do ator/requestId, saída explícita e negativos testados. |
+| M12 | Rollout controlado de provedor externo. | **Futuro**, requer aprovação operacional. | Contrato Hermes validado, métricas de erro/latência aceitáveis e rollback exercitado. |
 
 ## Rollback
 
