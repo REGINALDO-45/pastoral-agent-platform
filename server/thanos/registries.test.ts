@@ -34,6 +34,8 @@ describe("registros fechados do THÁNOS", () => {
       conversationId: 15,
     });
     expect(context.capabilities).toEqual(["agent:read", "agent:write", "dashboard:read"]);
+    expect(context.platformRole).toBe("none");
+    expect(context.platformCapabilities).toEqual([]);
   });
 
   it("nega workspaces e skills não registrados", () => {
@@ -65,7 +67,7 @@ describe("registros fechados do THÁNOS", () => {
     });
     const skill = thanosSkillRegistry.getForWorkspace(context.workspaceKey, "synthetic-operations-readonly");
 
-    expect(context).toMatchObject({ workspaceKey: "synthetic-operations", tenantId: "synthetic-tenant-a", domain: "synthetic-operations", requestId: "synthetic-bootstrap-1" });
+    expect(context).toMatchObject({ workspaceKey: "synthetic-operations", tenantId: "synthetic-tenant-a", domain: "synthetic-operations", requestId: "synthetic-bootstrap-1", platformRole: "none", platformCapabilities: [] });
     expect(skill).toMatchObject({ domain: "synthetic-operations", allowedTools: ["listar_pendencias_sinteticas"], allowedChannels: ["chat"], requiredCapabilities: ["agent:read"], readOnly: true });
   });
 });
