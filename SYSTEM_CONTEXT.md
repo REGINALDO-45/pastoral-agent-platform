@@ -15,6 +15,8 @@ O sistema opera por organização. A sessão identifica o usuário; a membership
 
 O bootstrap mantém o workspace Pastoral e um workspace sintético `synthetic-operations` com skill `READ-only` e executor determinístico. Essa entrada existe para provar isolamento de `workspaceKey`, `tenantId` e `domain`; ela não é exposta por rota pública, não importa ferramentas pastorais e não altera a audiência do piloto `chat`.
 
+O `ThanosContext` também carrega `platformRole` e `platformCapabilities` separadamente do `role` e das capabilities do tenant. O valor padrão é `role: none` sem capabilities; mesmo `superadmin` só pode usar capabilities globais explicitamente concedidas, e a fundação ainda não cria rota pública para listar, ler ou assumir tenants.
+
 ## Dados e privacidade
 
 | Dado | Tratamento |
