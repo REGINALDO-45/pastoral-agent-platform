@@ -16,6 +16,7 @@ O sistema opera por organização. A sessão identifica o usuário; a membership
 | Dado | Tratamento |
 |---|---|
 | Áudio enviado | Armazenamento privado de curta finalidade para transcrição autorizada. |
+| Roteamento de voz | Após a transcrição privada, a resposta entra pelo `AgentGateway` com o mesmo `requestId`, política e fallback local; isso não amplia o piloto THÁNOS, que continua restrito a `chat`. |
 | Transcrição de áudio | Processamento interno; não aparece no histórico nem no audit log. |
 | Mensagem de voz | Marcador estruturado no histórico, sem conteúdo reconhecido. |
 | Métricas do Dashboard | Agregadas no servidor e sempre delimitadas ao tenant atual. |

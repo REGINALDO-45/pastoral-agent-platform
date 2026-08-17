@@ -12,7 +12,7 @@ Este documento descreve o estado verificável do Assistente Pastoral após a evo
 | Multi-tenant | Organizações, memberships e `organizationId` em entidades pastorais. | O cliente nunca escolhe o tenant como fonte de autoridade. |
 | Chat | Conversas persistentes, propriedade por usuário, histórico isolado e roteador público THÁNOS opt-in. | Um segundo usuário, mesmo da mesma igreja, não lê conversas alheias; o caminho legado continua disponível. |
 | Agent Gateway e Agent Core | Gateway por tenant, política, Model Router, fallback local e catálogo declarativo de ferramentas. | Nenhum modelo ganha acesso direto a SQL, repositórios ou rotas internas. |
-| Voz | Áudio privado, transcrição interna, marcador de voz sem texto reconhecido e TTS do navegador. | Áudio e transcrição não entram em mensagens visíveis ou auditoria. |
+| Voz | Áudio privado, transcrição interna, marcador de voz sem texto reconhecido e TTS do navegador; após a transcrição, a resposta passa pelo `AgentGateway`. | Áudio e transcrição não entram em mensagens visíveis ou auditoria; o mesmo `requestId`, política e fallback do Gateway são preservados, sem ampliar o piloto THÁNOS `chat`-only. |
 | Auditoria | Eventos de ferramenta, voz e Hermes com `requestId`, resultado, confirmação e provedor/modelo, sem chain-of-thought. | Logs permanecem sanitizados e filtrados por tenant. |
 | Dashboard | Métricas gerenciais, tendências, pendências com escopo declarado e insights determinísticos. | A tela continua a visão gerencial principal, não é substituída por chat ou IA generativa. |
 | Configurações | Área administrativa por papel para status e controles allowlisted. | Nenhum segredo, URL sensível, tool ou workflow arbitrário é criado pela interface. |
@@ -40,7 +40,7 @@ flowchart LR
   O --> A
 ```
 
-O fluxo de voz utiliza a mesma cadeia depois da transcrição privada. Antes de o Gateway receber a intenção, o sistema persiste somente o marcador **Mensagem de voz**. O fluxo de texto persiste a mensagem do usuário conforme a política de conversa existente.
+O fluxo de voz utiliza a mesma cadeia depois da transcrição privada, entrando pelo `AgentGateway` com um `requestId` compartilhado entre transcrição, resposta e auditoria. Antes de o Gateway receber a intenção, o sistema persiste somente o marcador **Mensagem de voz**; a transcrição não é persistida. O fluxo de texto persiste a mensagem do usuário conforme a política de conversa existente. A skill do piloto THÁNOS permanece limitada ao canal `chat`, portanto a convergência de voz não altera a audiência nem as intenções elegíveis do piloto.
 
 ## Limites inegociáveis
 
