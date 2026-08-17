@@ -15,7 +15,9 @@
 | M11 | Contrato de contexto assumido governado. | **Concluído como contrato interno**; sem execução cross-tenant ou alteração de membership. | Capability `platform:tenant:assume`, diretório de existência, auditoria do ator/requestId, saída explícita e negativos testados. |
 | M12 | Planner READ genérico com plano declarado e isolamento por passo. | **Concluído como contrato interno**; sem novas rotas ou ferramentas públicas. | Dois a cinco passos, preflight de capabilities, recusa de `WRITE`, contexto fresco por passo e fallback parcial testados. |
 | M13 | Evidência generalizada com proveniência sanitizada. | **Concluído no planner interno**; conectores reais continuam bloqueados. | Fonte, workspace, tenant, requestId, ferramenta e etapa compostos sem prompt privado, áudio, transcrição ou segredo. |
-| M14 | Rollout controlado de provedor externo. | **Futuro**, requer aprovação operacional. | Contrato Hermes validado, métricas de erro/latência aceitáveis e rollback exercitado. |
+| M14 | Confirmation Engine genérico e negativo. | **Concluído como contrato interno**; nenhuma nova operação pública ativada. | Máquina de estados, capability `agent:write`, confirmação explícita, escopo, store injetável, idempotência e concorrência testados. |
+| M15 | Generalização de canais e Connector Registry governado. | **Futuro**, sem credenciais reais nesta branch. | Contratos channel-agnostic, registry allowlisted e mocks auditáveis antes de qualquer integração externa. |
+| M16 | Rollout controlado de provedor externo. | **Futuro**, requer aprovação operacional. | Contrato Hermes validado, métricas de erro/latência aceitáveis e rollback exercitado. |
 
 ## Rollback
 
