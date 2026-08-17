@@ -13,7 +13,9 @@
 | M9 | Prova de generalidade multi-workspace do núcleo THÁNOS. | **Concluído como prova sintética**; sem nova rota pública ou dado pastoral. | Segundo workspace registrado, skill READ-only, tenant/domain distintos, executor determinístico e negativa de capability testados. |
 | M10 | Fundação de platform access com role/capabilities explícitos e deny-by-default. | **Concluído como contrato interno**; sem rota pública de superadmin ou assunção. | Separação tenant/platform, capabilities globais fechadas, negativos de role/capability e isolamento dos workspaces testados. |
 | M11 | Contrato de contexto assumido governado. | **Concluído como contrato interno**; sem execução cross-tenant ou alteração de membership. | Capability `platform:tenant:assume`, diretório de existência, auditoria do ator/requestId, saída explícita e negativos testados. |
-| M12 | Rollout controlado de provedor externo. | **Futuro**, requer aprovação operacional. | Contrato Hermes validado, métricas de erro/latência aceitáveis e rollback exercitado. |
+| M12 | Planner READ genérico com plano declarado e isolamento por passo. | **Concluído como contrato interno**; sem novas rotas ou ferramentas públicas. | Dois a cinco passos, preflight de capabilities, recusa de `WRITE`, contexto fresco por passo e fallback parcial testados. |
+| M13 | Evidência generalizada com proveniência sanitizada. | **Concluído no planner interno**; conectores reais continuam bloqueados. | Fonte, workspace, tenant, requestId, ferramenta e etapa compostos sem prompt privado, áudio, transcrição ou segredo. |
+| M14 | Rollout controlado de provedor externo. | **Futuro**, requer aprovação operacional. | Contrato Hermes validado, métricas de erro/latência aceitáveis e rollback exercitado. |
 
 ## Rollback
 

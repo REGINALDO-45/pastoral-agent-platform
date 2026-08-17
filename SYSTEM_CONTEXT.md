@@ -17,6 +17,8 @@ O bootstrap mantém o workspace Pastoral e um workspace sintético `synthetic-op
 
 O `ThanosContext` também carrega `platformRole` e `platformCapabilities` separadamente do `role` e das capabilities do tenant. O valor padrão é `role: none` sem capabilities; mesmo `superadmin` só pode usar capabilities globais explicitamente concedidas, e a fundação ainda não cria rota pública para listar, ler ou assumir tenants.
 
+O núcleo dispõe de um planner READ interno para planos declarados de dois a cinco passos. Ele faz preflight de capabilities, recusa intenção `WRITE`, cria uma referência de contexto por passo e devolve fallback parcial determinístico em caso de falha. Cada evidência recebe proveniência de fonte, workspace, tenant, `requestId`, ferramenta e etapa; essa proveniência é metadado sanitizado e não representa armazenamento de prompt, áudio, transcrição ou segredo.
+
 ## Dados e privacidade
 
 | Dado | Tratamento |
