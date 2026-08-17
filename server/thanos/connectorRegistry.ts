@@ -1,6 +1,7 @@
 import { assertThanosCapability } from "./context";
 import type { ThanosCapability, ThanosContext } from "./contracts";
 import { assertChannelAllowed, createChannelEnvelope, type ThanosChannelKind, type ThanosChannelPayloadKind, type ThanosChannelPolicy } from "./channels";
+import { fingerprintThanosPayload, type ThanosConfirmationGrant, type ThanosConfirmationGrantPort } from "./confirmation";
 import type { ThanosEvidence } from "./evidence";
 
 export type ThanosConnectorIntent = "READ" | "WRITE";
@@ -18,6 +19,7 @@ export type ThanosConnectorManifest = Readonly<{
 export type ThanosConnectorExecutionInput = Readonly<{
   context: ThanosContext;
   requestId: string;
+  operation: string;
   channel: ThanosChannelKind;
   payloadKind: ThanosChannelPayloadKind;
   input: Readonly<Record<string, string>>;
@@ -79,10 +81,12 @@ export class ThanosConnectorRegistry {
     context: ThanosContext;
     connectorKey: string;
     requestId: string;
+    operation: string;
     channel: ThanosChannelKind;
     payloadKind: ThanosChannelPayloadKind;
     values?: Readonly<Record<string, string>>;
-    confirmationStatus?: "confirmed";
+    confirmationGrant?: ThanosConfirmationGrant;
+    confirmationGrantPort?: ThanosConfirmationGrantPort;
   }>): Promise<ThanosConnectorExecutionResult> {
     const connector = this.connectors.get(input.connectorKey);
     if (!connector) {
@@ -109,18 +113,36 @@ export class ThanosConnectorRegistry {
       await this.recordDenied(input.context, connector.manifest.key, input.requestId, "policy_or_capability_denied");
       throw error;
     }
-    if (connector.manifest.intent === "WRITE" && input.confirmationStatus !== "confirmed") {
-      await this.recordDenied(input.context, connector.manifest.key, input.requestId, "confirmation_required");
-      throw new ThanosConnectorError("Connector WRITE exige confirmação explícita.");
+
+    const values = Object.freeze({ ...(input.values ?? {}) });
+    if (connector.manifest.intent === "WRITE") {
+      if (!input.confirmationGrant || !input.confirmationGrantPort) {
+        await this.recordDenied(input.context, connector.manifest.key, input.requestId, "confirmation_grant_required");
+        throw new ThanosConnectorError("Connector WRITE exige grant de confirmação verificável.");
+      }
+      try {
+        await input.confirmationGrantPort.consumeGrant({
+          context: input.context,
+          operation: input.operation,
+          connectorKey: connector.manifest.key,
+          payloadFingerprint: fingerprintThanosPayload(values),
+          grant: input.confirmationGrant,
+          requestId: input.requestId,
+        });
+      } catch (error) {
+        await this.recordDenied(input.context, connector.manifest.key, input.requestId, "confirmation_grant_denied");
+        throw error;
+      }
     }
 
     try {
       const result = await connector.execute({
         context: input.context,
         requestId: input.requestId,
+        operation: input.operation,
         channel: input.channel,
         payloadKind: input.payloadKind,
-        input: Object.freeze({ ...(input.values ?? {}) }),
+        input: values,
       });
       await this.audit.record({
         context: input.context,
