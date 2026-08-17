@@ -1,7 +1,7 @@
 import type { Domain, TenantId, ThanosContextIdentity, WorkspaceKey } from "./contextIdentity";
 import type { PlatformCapability, PlatformRole } from "./platformAccess";
 
-export type ThanosCapability = "agent:read" | "agent:write" | "dashboard:read" | "settings:manage";
+export type ThanosCapability = "agent:read" | "agent:write" | "connector:execute" | "dashboard:read" | "settings:manage";
 export type ThanosChannel = "chat" | "voice";
 
 export type ThanosContext = Readonly<
