@@ -20,6 +20,7 @@
 | ADR-016 | Manter o piloto THÁNOS fora da rota pública até a aprovação formal de adoção do Gateway. | Substituída por ADR-017 | A caracterização, testes e rollback controlado foram concluídos antes da ativação seletiva. |
 | ADR-017 | Adotar THÁNOS no chat público somente por elegibilidade server-side READ, audiência explícita e kill switch. | Aprovada | A rota ativa permanece legada por padrão; só consultas fechadas de células, presença e relatórios podem seguir ao núcleo, com fallback legado sem duplicar a mensagem. |
 | ADR-018 | Encaminhar a resposta de voz transcrita pelo `AgentGateway`, mantendo a skill do piloto THÁNOS limitada ao canal `chat`. | Aprovada | Voz compartilha política, fallback, auditoria e `requestId` com o caminho governado sem ampliar audiência, intenções ou capacidades do piloto. |
+| ADR-019 | Registrar uma definição sintética READ-only no catálogo fechado para provar generalidade multi-workspace sem expor uma rota pública. | Aprovada | O núcleo demonstra isolamento de identidades, skill e capability em um segundo domínio; a entrada não acessa dados pastorais nem altera a adoção do piloto. |
 
 ## Decisões pendentes
 

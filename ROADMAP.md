@@ -10,7 +10,8 @@
 | M6 | Camada inteligente e Configurações. | **Concluído**; insights somente leitura. | Fallback visual, permissões, controles allowlisted e auditoria aprovados. |
 | M7 | Ciclo THÁNOS: núcleo genérico, workspace/skill declarativos e piloto READ multi-step. | **Concluído**; compatível. | Identidades segregadas, registros fechados, 2–3 passos READ, evidências compostas, auditoria e fallback testados. |
 | M8 | Adoção controlada do THÁNOS pela rota pública de chat. | **Concluído**; desativada por padrão e limitada a texto READ elegível. | Flag, kill switch, audiência de tenant/usuário, telemetria sanitizada, fallback sem duplicação e rollback exercitado. |
-| M9 | Rollout controlado de provedor externo. | **Futuro**, requer aprovação operacional. | Contrato Hermes validado, métricas de erro/latência aceitáveis e rollback exercitado. |
+| M9 | Prova de generalidade multi-workspace do núcleo THÁNOS. | **Concluído como prova sintética**; sem nova rota pública ou dado pastoral. | Segundo workspace registrado, skill READ-only, tenant/domain distintos, executor determinístico e negativa de capability testados. |
+| M10 | Rollout controlado de provedor externo. | **Futuro**, requer aprovação operacional. | Contrato Hermes validado, métricas de erro/latência aceitáveis e rollback exercitado. |
 
 ## Rollback
 

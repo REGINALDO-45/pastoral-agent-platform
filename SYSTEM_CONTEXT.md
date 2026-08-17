@@ -11,6 +11,10 @@ O sistema opera por organização. A sessão identifica o usuário; a membership
 | Admin do tenant | Configurações permitidas da própria organização, status sanitizado e auditoria local. |
 | Superadmin | Capacidade futura, explícita e verificada no servidor; nunca inferida pelo cliente. |
 
+## Generalidade do núcleo THÁNOS
+
+O bootstrap mantém o workspace Pastoral e um workspace sintético `synthetic-operations` com skill `READ-only` e executor determinístico. Essa entrada existe para provar isolamento de `workspaceKey`, `tenantId` e `domain`; ela não é exposta por rota pública, não importa ferramentas pastorais e não altera a audiência do piloto `chat`.
+
 ## Dados e privacidade
 
 | Dado | Tratamento |
