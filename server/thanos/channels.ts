@@ -2,6 +2,10 @@ import type { ThanosChannel, ThanosContext } from "./contracts";
 
 export type ThanosChannelKind = ThanosChannel | "webhook" | "email" | "whatsapp" | "slack";
 export type ThanosChannelPayloadKind = "text" | "voice" | "event";
+/** Transporte de ingressão; não substitui o channel de ação trusted do contexto. */
+export type ThanosTransport = "web" | "telegram";
+/** Modalidade de payload recebida pelo transporte. */
+export type ThanosModality = ThanosChannelPayloadKind;
 
 export type ThanosChannelEnvelope = Readonly<{
   channel: ThanosChannelKind;
