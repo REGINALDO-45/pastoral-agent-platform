@@ -127,6 +127,7 @@ function createFetchSequence(responses: readonly Response[]) {
 function createRuntimeFixture(input: Readonly<{
   responses?: readonly Response[];
   environment?: Readonly<Record<string, string>>;
+  environmentRef?: Record<string, string>;
   queryDelayMs?: number;
 }>) {
   const fixture = repositoryFixture({ queryDelayMs: input.queryDelayMs });
@@ -135,7 +136,7 @@ function createRuntimeFixture(input: Readonly<{
   const fetch = createFetchSequence(input.responses ?? []);
   const runtime = createTelegramRealPilotRuntime({
     repository: fixture.repository,
-    environment: environment(input.environment),
+    environment: input.environmentRef ?? environment(input.environment),
     fetchImpl: fetch.fetchImpl,
     membershipLookup: async binding => binding.organizationId === 42 && binding.internalUserId === 7 ? tenantContext() : null,
     audit: {
@@ -159,10 +160,13 @@ async function pollWithUpdate(input: Readonly<{
   const fixture = createRuntimeFixture({
     environment: input.environment,
     responses: [
+      getMeOk(),
+      webhookEmpty(),
       response({ ok: true, result: [input.updateValue ?? update({ from: { id: 1001 }, chat: { id: 2001, type: "private" } })] }),
       ...(input.extraResponses ?? [sendMessageOk()]),
     ],
   });
+  await fixture.runtime.receiver.preflight();
   const result = await fixture.runtime.receiver.pollOnce();
   return { ...fixture, result };
 }
@@ -228,12 +232,57 @@ describe("THÁNOS M20 controlled Telegram real-read pilot", () => {
     expect(fixture.auditEvents).toContainEqual(expect.objectContaining({ operation: "preflight", reason: "webhook_active", status: "denied" }));
   });
 
+  it("poll without preflight is denied before getUpdates", async () => {
+    const fixture = createRuntimeFixture({ responses: [response({ ok: true, result: [] })] });
+    await expect(fixture.runtime.receiver.pollOnce()).rejects.toMatchObject({ reason: "preflight_required" });
+    expect(fixture.calls).toHaveLength(0);
+  });
+
+  it("getMe preflight failure leaves polling denied and performs zero getUpdates", async () => {
+    const fixture = createRuntimeFixture({ responses: [response({ ok: false, error_code: 401 }, 401), response({ ok: true, result: [] })] });
+    await expect(fixture.runtime.receiver.preflight()).rejects.toMatchObject({ reason: "bot_authentication_failed" });
+    await expect(fixture.runtime.receiver.pollOnce()).rejects.toMatchObject({ reason: "preflight_required" });
+    expect(fixture.calls.filter(call => call.url.endsWith("/getUpdates"))).toHaveLength(0);
+  });
+
+  it("active webhook leaves polling denied and performs zero getUpdates", async () => {
+    const fixture = createRuntimeFixture({ responses: [getMeOk(), webhookActive(), response({ ok: true, result: [] })] });
+    await expect(fixture.runtime.receiver.preflight()).rejects.toMatchObject({ reason: "webhook_active" });
+    await expect(fixture.runtime.receiver.pollOnce()).rejects.toMatchObject({ reason: "preflight_required" });
+    expect(fixture.calls.filter(call => call.url.endsWith("/getUpdates"))).toHaveLength(0);
+  });
+
+  it("invalidates the preflight grant when kill switch or pilot state changes", async () => {
+    const killSwitchEnvironment = environment();
+    const killSwitchFixture = createRuntimeFixture({ environmentRef: killSwitchEnvironment, responses: [getMeOk(), webhookEmpty()] });
+    await killSwitchFixture.runtime.receiver.preflight();
+    killSwitchEnvironment.TELEGRAM_PILOT_KILL_SWITCH = "true";
+    await expect(killSwitchFixture.runtime.receiver.pollOnce()).rejects.toMatchObject({ reason: "kill_switch_active" });
+    expect(killSwitchFixture.calls.filter(call => call.url.endsWith("/getUpdates"))).toHaveLength(0);
+
+    const disabledEnvironment = environment();
+    const disabledFixture = createRuntimeFixture({ environmentRef: disabledEnvironment, responses: [getMeOk(), webhookEmpty()] });
+    await disabledFixture.runtime.receiver.preflight();
+    disabledEnvironment.TELEGRAM_PILOT_ENABLED = "false";
+    await expect(disabledFixture.runtime.receiver.pollOnce()).rejects.toMatchObject({ reason: "pilot_disabled" });
+    expect(disabledFixture.calls.filter(call => call.url.endsWith("/getUpdates"))).toHaveLength(0);
+  });
+
   it("empty webhook makes polling eligible and requests only message updates", async () => {
     const fixture = createRuntimeFixture({ responses: [getMeOk(), webhookEmpty()] });
     await expect(fixture.runtime.receiver.preflight()).resolves.toEqual({ botAuthenticated: true, webhookPresent: false });
-    const pollFixture = createRuntimeFixture({ responses: [response({ ok: true, result: [] })] });
+    const pollFixture = createRuntimeFixture({ responses: [getMeOk(), webhookEmpty(), response({ ok: true, result: [] })] });
+    await pollFixture.runtime.receiver.preflight();
     await pollFixture.runtime.receiver.pollOnce(10);
-    expect(pollFixture.calls[0].body).toMatchObject({ offset: 10, timeout: 0, allowed_updates: [...TELEGRAM_ALLOWED_UPDATES] });
+    expect(pollFixture.calls[2].body).toMatchObject({ offset: 10, timeout: 0, allowed_updates: [...TELEGRAM_ALLOWED_UPDATES] });
+  });
+
+  it("start performs exactly getMe, getWebhookInfo and getUpdates after one authoritative preflight", async () => {
+    const fixture = createRuntimeFixture({ responses: [getMeOk(), webhookEmpty(), response({ ok: true, result: [] })] });
+    let signalChecks = 0;
+    const signal = { get aborted() { return signalChecks++ >= 1; } } as AbortSignal;
+    await fixture.runtime.receiver.start(signal);
+    expect(fixture.calls.map(call => call.url.split("/").pop())).toEqual(["getMe", "getWebhookInfo", "getUpdates"]);
   });
 
   it("uses only the fixed host and closed Bot API method allowlist", async () => {
@@ -251,11 +300,11 @@ describe("THÁNOS M20 controlled Telegram real-read pilot", () => {
     const media = await pollWithUpdate({ updateValue: update({ text: undefined, photo: [{ file_id: "opaque" }] }) });
     const malformed = await pollWithUpdate({ updateValue: { update_id: 102 } });
 
-    expect(group.calls).toHaveLength(1);
-    expect(supergroup.calls).toHaveLength(1);
-    expect(channel.calls).toHaveLength(1);
-    expect(media.calls).toHaveLength(1);
-    expect(malformed.calls).toHaveLength(1);
+    expect(group.calls).toHaveLength(3);
+    expect(supergroup.calls).toHaveLength(3);
+    expect(channel.calls).toHaveLength(3);
+    expect(media.calls).toHaveLength(3);
+    expect(malformed.calls).toHaveLength(3);
     expect(group.calls.some(call => call.body.chat_id)).toBe(false);
     expect(supergroup.calls.some(call => call.body.chat_id)).toBe(false);
     expect(channel.calls.some(call => call.body.chat_id)).toBe(false);
@@ -266,8 +315,8 @@ describe("THÁNOS M20 controlled Telegram real-read pilot", () => {
   it("denies external user or chat mismatch before membership and READ", async () => {
     const user = await pollWithUpdate({ updateValue: update({ from: { id: 999 } }) });
     const chat = await pollWithUpdate({ updateValue: update({ chat: { id: 999, type: "private" } }) });
-    expect(user.calls).toHaveLength(1);
-    expect(chat.calls).toHaveLength(1);
+    expect(user.calls).toHaveLength(3);
+    expect(chat.calls).toHaveLength(3);
     expect(user.calls.some(call => call.body.chat_id)).toBe(false);
     expect(chat.calls.some(call => call.body.chat_id)).toBe(false);
     expect(user.calls).not.toContainEqual(expect.objectContaining({ body: expect.objectContaining({ text: expect.stringContaining("Há") }) }));
@@ -284,62 +333,65 @@ describe("THÁNOS M20 controlled Telegram real-read pilot", () => {
       }),
     });
     expect(fixture.calls).toContainEqual(expect.objectContaining({ body: expect.objectContaining({ chat_id: "2001" }) }));
-    expect(fixture.calls).toHaveLength(2);
-    expect(fixture.calls[1].body.text).toBe("Há 2 células ativas no tenant autorizado.");
-    expect(fixture.calls[1].body.text).not.toContain("org:999");
-    expect(fixture.calls[1].body.text).not.toContain("superadmin");
-    expect(fixture.calls[1].body).not.toHaveProperty("tenantId");
-    expect(fixture.calls[1].body).not.toHaveProperty("userId");
-    expect(fixture.calls[1].body).not.toHaveProperty("role");
-    expect(fixture.calls[1].body).not.toHaveProperty("capabilities");
-    expect(fixture.calls).toHaveLength(2);
+    expect(fixture.calls).toHaveLength(4);
+    expect(fixture.calls[3].body.text).toBe("Há 2 células ativas no tenant autorizado.");
+    expect(fixture.calls[3].body.text).not.toContain("org:999");
+    expect(fixture.calls[3].body.text).not.toContain("superadmin");
+    expect(fixture.calls[3].body).not.toHaveProperty("tenantId");
+    expect(fixture.calls[3].body).not.toHaveProperty("userId");
+    expect(fixture.calls[3].body).not.toHaveProperty("role");
+    expect(fixture.calls[3].body).not.toHaveProperty("capabilities");
+    expect(fixture.calls).toHaveLength(4);
     expect(fixture.calls.every(call => call.url.startsWith(`https://${TELEGRAM_BOT_API_HOST}/bot`))).toBe(true);
   });
 
   it("/start and unsupported text do not call tools", async () => {
     const start = await pollWithUpdate({ updateValue: update({ text: "/start" }) });
     const unknown = await pollWithUpdate({ updateValue: update({ text: "me ajude" }) });
-    expect(start.calls).toHaveLength(2);
-    expect(unknown.calls).toHaveLength(2);
-    expect(start.calls[1].body.text).toBe("Piloto THÁNOS ativo. Use /celulas.");
-    expect(unknown.calls[1].body.text).toBe("Comando não disponível neste piloto.");
+    expect(start.calls).toHaveLength(4);
+    expect(unknown.calls).toHaveLength(4);
+    expect(start.calls[3].body.text).toBe("Piloto THÁNOS ativo. Use /celulas.");
+    expect(unknown.calls[3].body.text).toBe("Comando não disponível neste piloto.");
     expect(start.calls.every(call => !call.body.tool)).toBe(true);
     expect(unknown.calls.every(call => !call.body.tool)).toBe(true);
-    expect(start.calls.length).toBe(2);
-    expect(unknown.calls.length).toBe(2);
+    expect(start.calls.length).toBe(4);
+    expect(unknown.calls.length).toBe(4);
   });
 
   it("/celulas executes consultar_celulas exactly once and sends only authorized summary to the bound chat", async () => {
     const fixture = await pollWithUpdate({});
-    expect(fixture.calls).toHaveLength(2);
+    expect(fixture.calls).toHaveLength(4);
     expect(fixture.calls.filter(call => call.body.chat_id)).toHaveLength(1);
-    expect(fixture.calls[1].body).toEqual({ chat_id: "2001", text: "Há 2 células ativas no tenant autorizado." });
-    expect(fixture.calls[1].body.text).not.toContain("não deve sair");
+    expect(fixture.calls[3].body).toEqual({ chat_id: "2001", text: "Há 2 células ativas no tenant autorizado." });
+    expect(fixture.calls[3].body.text).not.toContain("não deve sair");
     expect(fixture.calls).not.toContainEqual(expect.objectContaining({ body: expect.objectContaining({ chat_id: "tg-chat-forjado" }) }));
-    expect(fixture.calls[1].url.endsWith("/sendMessage")).toBe(true);
-    expect(fixture.calls[0].body.allowed_updates).toEqual([...TELEGRAM_ALLOWED_UPDATES]);
-    expect(fixture.calls).toHaveLength(2);
+    expect(fixture.calls[3].url.endsWith("/sendMessage")).toBe(true);
+    expect(fixture.calls[2].body.allowed_updates).toEqual([...TELEGRAM_ALLOWED_UPDATES]);
+    expect(fixture.calls).toHaveLength(4);
     expect(fixture.calls.some(call => call.body.method === "consultar_relatorios")).toBe(false);
   });
 
   it("duplicate update advances cursor and executes READ/outbound at most once", async () => {
     const fixture = createRuntimeFixture({
       responses: [
+        getMeOk(),
+        webhookEmpty(),
         response({ ok: true, result: [update()] }),
         sendMessageOk(),
         response({ ok: true, result: [update()] }),
       ],
     });
+    await fixture.runtime.receiver.preflight();
     const first = await fixture.runtime.receiver.pollOnce();
     const second = await fixture.runtime.receiver.pollOnce(first.nextOffset);
     expect(first.nextOffset).toBe(102);
     expect(second.nextOffset).toBe(102);
     expect(fixture.calls.filter(call => call.body.chat_id)).toHaveLength(1);
-    expect(fixture.calls).toHaveLength(3);
+    expect(fixture.calls).toHaveLength(5);
     expect(fixture.calls.find(call => call.url.endsWith("/sendMessage"))?.body.text).toBe("Há 2 células ativas no tenant autorizado.");
     expect(fixture.calls.filter(call => call.url.endsWith("/sendMessage"))).toHaveLength(1);
     expect(fixture.calls.filter(call => call.url.endsWith("/getUpdates"))).toHaveLength(2);
-    expect(fixture.calls).toHaveLength(3);
+    expect(fixture.calls).toHaveLength(5);
     expect(fixture.calls.every(call => !call.url.includes("deleteWebhook"))).toBe(true);
   });
 

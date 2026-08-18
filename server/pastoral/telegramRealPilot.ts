@@ -108,7 +108,8 @@ export type TelegramPilotBlockedReason =
   | "command_not_allowed"
   | "runtime_denied"
   | "read_failed"
-  | "outbound_failed";
+  | "outbound_failed"
+  | "preflight_required";
 
 export class TelegramPilotBlockedError extends Error {
   constructor(public readonly reason: TelegramPilotBlockedReason) {
@@ -416,9 +417,29 @@ export type TelegramLongPollingReceiverInput = Readonly<{
   now?: () => number;
 }>;
 
+type TelegramPollingGrant = Readonly<{
+  client: TelegramBotApiClient;
+  configFingerprint: string;
+}>;
+
+function telegramPollingConfigFingerprint(config: TelegramPilotConfig): string {
+  return [
+    config.enabled ? "1" : "0",
+    config.killSwitch ? "1" : "0",
+    config.externalUserId,
+    config.externalChatId,
+    config.organizationId ?? "",
+    config.internalUserId ?? "",
+    config.version,
+    config.pollTimeoutSeconds,
+    config.requestTimeoutMs,
+  ].map(value => encodeURIComponent(String(value))).join("|");
+}
+
 export class TelegramLongPollingReceiver {
   private readonly requestIdFactory: () => string;
   private readonly now: () => number;
+  private preflightGrant: TelegramPollingGrant | undefined;
 
   constructor(private readonly input: TelegramLongPollingReceiverInput) {
     this.requestIdFactory = input.requestIdFactory ?? randomUUID;
@@ -426,32 +447,53 @@ export class TelegramLongPollingReceiver {
   }
 
   async preflight(): Promise<Readonly<{ botAuthenticated: true; webhookPresent: false }>> {
+    this.preflightGrant = undefined;
     const config = this.input.getConfig();
     assertTelegramPilotCanStart(config);
+    const preflightFingerprint = telegramPollingConfigFingerprint(config);
     try {
       await this.input.client.getMe();
     } catch {
+      this.preflightGrant = undefined;
       await this.recordPilot({ operation: "preflight", status: "failure", reason: "bot_authentication_failed" });
       throw new TelegramPilotBlockedError("bot_authentication_failed");
     }
     try {
       const webhook = await this.input.client.getWebhookInfo();
       if (webhook.url.trim()) {
+        this.preflightGrant = undefined;
         await this.recordPilot({ operation: "preflight", status: "denied", reason: "webhook_active" });
         throw new TelegramPilotBlockedError("webhook_active");
       }
     } catch (error) {
       if (error instanceof TelegramPilotBlockedError) throw error;
+      this.preflightGrant = undefined;
       await this.recordPilot({ operation: "preflight", status: "failure", reason: "bot_authentication_failed" });
       throw new TelegramPilotBlockedError("bot_authentication_failed");
     }
+    const currentConfig = this.input.getConfig();
+    if (!hasCompleteTelegramPilotBinding(currentConfig) || !currentConfig.enabled || currentConfig.killSwitch || telegramPollingConfigFingerprint(currentConfig) !== preflightFingerprint) {
+      this.preflightGrant = undefined;
+      await this.recordPilot({ operation: "preflight", status: "denied", reason: "preflight_invalidated" });
+      throw new TelegramPilotBlockedError("preflight_required");
+    }
+    this.preflightGrant = Object.freeze({ client: this.input.client, configFingerprint: preflightFingerprint });
     await this.recordPilot({ operation: "preflight", status: "success" });
     return Object.freeze({ botAuthenticated: true as const, webhookPresent: false as const });
   }
 
-  async pollOnce(offset?: number): Promise<Readonly<{ nextOffset?: number; processed: number }>> {
-    assertTelegramPilotActive(this.input.getConfig());
+  private assertPollingAuthorized(): TelegramPilotConfig {
     const config = this.input.getConfig();
+    assertTelegramPilotActive(config);
+    const grant = this.preflightGrant;
+    if (!grant || grant.client !== this.input.client || grant.configFingerprint !== telegramPollingConfigFingerprint(config)) {
+      throw new TelegramPilotBlockedError("preflight_required");
+    }
+    return config;
+  }
+
+  async pollOnce(offset?: number): Promise<Readonly<{ nextOffset?: number; processed: number }>> {
+    const config = this.assertPollingAuthorized();
     const updates = await this.input.client.getUpdates({ offset, timeoutSeconds: config.pollTimeoutSeconds });
     let nextOffset = offset;
     let processed = 0;
