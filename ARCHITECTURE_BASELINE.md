@@ -23,6 +23,7 @@ Este documento descreve o estado verificável do Assistente Pastoral após a evo
 | Confirmation Engine | Máquina de estados interna para operações `WRITE`, com capability explícita, confirmação, store injetável, grant verificável, TTL e consumo único. | Cada grant vincula usuário, conversa quando aplicável, tenant, workspace, operação, connector e fingerprint do payload, além de `originRequestId` e `createdAt`/`expiresAt`; `originRequestId` identifica a requisição de origem, enquanto confirmação e consumo mantêm seus próprios requestIds. Expiração, identidade divergente, escopo divergente e replay são recusados e auditados. `confirmationStatus` é apenas telemetria, nunca autorização; idempotência deduplica confirmação por chave/escopo, sem prometer exactly-once do efeito externo. |
 | Channels | Envelopes e respostas channel-agnostic com `channelPolicy` allowlisted, `requestId`, workspace, tenant e payload kind explícitos. | Policies desconhecidas, payloads não autorizados e eventos mutáveis em READ-only são recusados; WhatsApp, Slack, email e webhook permanecem sem integração ativa. |
 | Connector Registry | Registry interno fechado para connectors declarados, com manifest, allowlist de key, capability, channel policy, disabled-by-default e auditoria. | Mocks READ são executáveis apenas sob capability/policy; WRITE exige grant consumível e verificável pelo Confirmation Engine, ligado à operação, connector e fingerprint recalculado do payload. A autoridade de consumo é injetada server-side no construtor trusted; `execute()` não aceita um validator fornecido pelo caller. Nenhum status textual, segredo, URL, webhook ou connector externo autoriza execução. |
+| Governed Action Runtime | Runtime interno único para `Action Intent` READ/WRITE: resolve contexto, workspace, skill e operação por registries trusted; aplica channel policy; delega READ ao Connector Registry; e compõe pending/confirmed/grant/execute para WRITE. | O caller não envia authority. WRITE não executa no primeiro pedido, não aceita status textual, exige confirmação explícita e grant verificável consumido uma única vez. Retornos, evidence e audit são sanitizados e channel-agnostic; a prova atual usa apenas fixtures synthetic in-memory, sem rota pública, banco, rede ou efeitos externos. |
 | Workspace Pastoral | Skill `pastoral-assistant`, adaptadores declarativos READ e fachada compatível. | A skill aceita apenas `chat`, exige `agent:read` e não permite `WRITE` ou `SENSITIVE`. |
 | Piloto multi-step | Duas ou três leituras pastorais fixas — células, presença e relatórios — sob um único contexto. | Aceita somente 2–3 passos READ; falha operacional retorna fallback determinístico sem expor erro bruto. |
 | Roteamento público THÁNOS | Elegibilidade server-side por flag, allowlists de organização/usuário e intenção READ fechada. | O kill switch retorna imediatamente ao legado; `WRITE`, `SENSITIVE`, voz e intenções fora da allowlist não entram no piloto. |
@@ -44,6 +45,10 @@ flowchart LR
   X --> W[Registros fechados de workspace e skill]
   W --> O[Orquestrador READ de uma ou múltiplas etapas]
   O --> A
+  O --> AR[Governed Action Runtime]
+  AR --> CNG[Confirmation Engine]
+  AR --> CR[Connector Registry]
+  AR --> EV[Evidence + Audit sanitizados]
 ```
 
 O fluxo de voz utiliza a mesma cadeia depois da transcrição privada, entrando pelo `AgentGateway` com um `requestId` compartilhado entre transcrição, resposta e auditoria. Antes de o Gateway receber a intenção, o sistema persiste somente o marcador **Mensagem de voz**; a transcrição não é persistida. O fluxo de texto persiste a mensagem do usuário conforme a política de conversa existente. A skill do piloto THÁNOS permanece limitada ao canal `chat`, portanto a convergência de voz não altera a audiência nem as intenções elegíveis do piloto.
@@ -53,7 +58,7 @@ O fluxo de voz utiliza a mesma cadeia depois da transcrição privada, entrando 
 | Limite | Regra |
 |---|---|
 | Banco e repositórios | Somente executores confiáveis podem acessá-los; modelos e conectores externos não recebem credenciais ou consultas livres. |
-| Escritas | Exigem ferramenta cadastrada, schema validado, role autorizada, escopo derivado do servidor e confirmação quando definida pela matriz de risco. |
+| Escritas | Exigem ferramenta cadastrada, schema validado, role autorizada, escopo derivado do servidor e confirmação explícita pelo Governed Action Runtime; nenhum status textual ou payload do caller concede autoridade. |
 | Contexto de tenant | Sempre vem da membership autenticada; `organizationId` enviado pelo cliente, modelo ou provedor nunca é aceito como autoridade. |
 | Segredos | Chaves, URLs sensíveis, variáveis de ambiente e objetos de erro brutos não são serializados para a UI, logs ou auditoria. |
 | Automação externa | Começa desativada, allowlisted e sem URLs ou workflows arbitrários. |

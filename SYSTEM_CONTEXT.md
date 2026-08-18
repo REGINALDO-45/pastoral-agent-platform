@@ -23,6 +23,8 @@ Os contratos de canais são channel-agnostic: envelopes e respostas carregam can
 
 O Connector Registry é uma porta interna fechada: cada connector precisa de manifest, key na allowlist, capability compatível, canais e payloads permitidos, além de estar explicitamente habilitado. A execução mantém o `requestId` do contexto, recusa divergência de escopo e exige, para `WRITE`, um grant consumível produzido pelo Confirmation Engine. A autoridade de validação/consumo do grant é injetada server-side no construtor trusted; `execute()` não aceita um validator fornecido pelo caller. O grant é vinculado a `userId`, `conversationId` quando aplicável, tenant, workspace, operação, connector e fingerprint recalculado do payload; `originRequestId` registra a requisição que originou a confirmação, enquanto confirmação e consumo preservam seus próprios requestIds. `createdAt`/`expiresAt` definem o TTL, e o consumo único impede replay. `confirmationStatus` permanece apenas metadado de resposta/auditoria e nunca concede autorização. A idempotência deduplica a confirmação por chave e escopo, sem prometer exactly-once do efeito externo. A execução audita somente resultado sanitizado. Os connectors usados nos testes são mocks determinísticos e não representam integração externa ativa.
 
+O `ThanosGovernedActionRuntime` é a composição interna única para `Action Intent` READ/WRITE. Ele resolve no servidor o contexto, workspace, skill e operação trusted; valida a relação entre intent e catálogo, aplica channel policy e delega a execução ao Connector Registry. READ pode retornar evidência diretamente. WRITE retorna `confirmation_pending` sem executar, confirma somente por `confirmationId` e `idempotencyKey`, emite grant trusted e só então consome o grant durante a execução. Nenhuma authority, capability, tenant efetivo ou status textual enviado pelo caller é aceito como autorização. A prova atual usa o workspace `synthetic-operations`, connectors in-memory e nenhuma rota pública, banco, rede, Hermes, n8n ou efeito externo.
+
 ## Dados e privacidade
 
 | Dado | Tratamento |
@@ -37,6 +39,7 @@ O Connector Registry é uma porta interna fechada: cada connector precisa de man
 | Contexto THÁNOS | `workspaceKey` identifica o workspace, `tenantId` a organização autenticada e `domain` o domínio de negócio. |
 | Piloto multi-step | Duas ou três etapas READ — células, presença e relatórios — usam o mesmo contexto autenticado; evidências aprovadas são compostas e falhas operacionais usam fallback determinístico. |
 | Roteamento THÁNOS | Flag, allowlists de organização/usuário e intenção fechada são avaliadas somente no servidor; o kill switch vence qualquer elegibilidade. |
+| Action Runtime | `ActionIntent` declarativo e runtime interno channel-agnostic para READ/WRITE, com pending/confirmed/grant/execute e evidence/audit sanitizados. | Somente a composição trusted pode resolver catálogo e consumir grants; a prova WRITE é synthetic-only e permanece desconectada de produção e integrações externas. |
 
 ## Variáveis e configuração
 
