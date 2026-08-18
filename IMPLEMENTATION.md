@@ -17,6 +17,7 @@ O Assistente Pastoral de IA é uma aplicação multi-tenant para gestão de igre
 | Núcleo THÁNOS | Contexto com identidades segregadas, registros fechados, adaptador Pastoral, orquestração READ, roteador público controlado e `ThanosGovernedActionRuntime` interno. | Workspaces não acessam repositórios diretamente nem aceitam tenant, domínio, skill, operação, connector ou authority arbitrários do cliente. |
 | Piloto multi-step | Sequência declarativa de `consultar_celulas`, `consultar_presenca` e `consultar_relatorios`, evidência composta, geração única e fallback determinístico. | Somente 2–3 passos READ são aceitos; cada etapa é auditada e nenhuma falha interna é retornada ao usuário. |
 | Action Runtime | `ActionIntent` declarativo e runtime server-side único para READ/WRITE, com resolução trusted de catálogo, channel policy, pending/confirmed/grant/execute e evidence/audit sanitizados. | WRITE não executa sem confirmação explícita e grant consumível; a implementação exercitada é synthetic-only, in-memory e sem rota pública ou efeitos externos. |
+| Command Center | Shell THÁNOS responsivo com modo USER e SUPERADMIN, navegação, chat, voz, workspace, evidence, joias, poderes e confirmação visual. | SUPERADMIN é apresentado somente após autorização server-side; a UI não cria authority, tenant, capabilities ou canais e não expõe grants, payloads, erros brutos ou segredos. WRITE público permanece bloqueado. |
 
 ## Operação do Agent Gateway
 
@@ -40,6 +41,6 @@ O `ThanosGovernedActionRuntime` compõe o fluxo interno único de ações. O cal
 
 ## Validação da versão
 
-A validação histórica desta evolução concluiu regressão Vitest com **102 testes em 34 arquivos**, checagem TypeScript, build de produção e auditoria de dependências de produção sem vulnerabilidades conhecidas. Nesta branch empilhada, a regressão synthetic-safe passou com **45 arquivos e 175 testes**, incluindo **7 provas end-to-end** do Action Runtime; `pnpm check`, build de produção e `git diff --check` também passaram. A execução local completa encontrou **9 testes de integração dependentes de `DATABASE_URL`/banco**, enquanto os demais 175 testes permaneceram verdes; a validação MySQL 8.4 será repetida no CI efêmero após a publicação da branch.
+A validação histórica desta evolução concluiu regressão Vitest com **102 testes em 34 arquivos**, checagem TypeScript, build de produção e auditoria de dependências de produção sem vulnerabilidades conhecidas. Nesta branch de experiência, os testes frontend passaram com **10 arquivos e 34 testes**, incluindo layout USER/SUPERADMIN, primitives de evidence/confirmation, privacidade de voz/chat e fallback visual; `pnpm check`, build de produção e `git diff --check` também passaram. A regressão local completa encontrou **9 testes de integração dependentes de `DATABASE_URL`/banco**, enquanto os demais **189 testes** permaneceram verdes; a validação MySQL 8.4 será repetida no CI efêmero após a publicação da branch.
 
 O projeto publicado está disponível em [pastoralai-js2vazr4.manus.space](https://pastoralai-js2vazr4.manus.space). A versão de referência anterior à consolidação documental final é o checkpoint `9e4f5e92`.

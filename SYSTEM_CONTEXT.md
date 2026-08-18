@@ -42,6 +42,7 @@ O `ThanosGovernedActionRuntime` é a composição interna única para `Action In
 | Piloto multi-step | Duas ou três etapas READ — células, presença e relatórios — usam o mesmo contexto autenticado; evidências aprovadas são compostas e falhas operacionais usam fallback determinístico. |
 | Roteamento THÁNOS | Flag, allowlists de organização/usuário e intenção fechada são avaliadas somente no servidor; o kill switch vence qualquer elegibilidade. |
 | Action Runtime | `ActionIntent` declarativo e runtime interno channel-agnostic para READ/WRITE, com pending/confirmed/grant/execute e evidence/audit sanitizados. | Somente a composição trusted pode resolver catálogo e consumir grants; a prova WRITE é synthetic-only e permanece desconectada de produção e integrações externas. |
+| Command Center | Experiência visual responsiva com shell THÁNOS, USER, SUPERADMIN autorizado pelo servidor, workspace, chat, voz, evidence, joias, poderes e confirmação visual. | A interface apresenta apenas respostas e estados sanitizados. Não escolhe tenant, role, capability, platform authority, connector, grant ou canal; WRITE público e integrações externas permanecem desativados. |
 
 ## Variáveis e configuração
 
