@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { expectTypeOf } from "vitest";
 import { createThanosContext } from "./context";
 import { toDomain, toTenantId, toWorkspaceKey } from "./contextIdentity";
 import { createChannelPolicy } from "./channels";
@@ -121,14 +122,54 @@ describe("ThanosConnectorRegistry", () => {
   it("não aceita confirmationStatus textual como autorização suficiente", async () => {
     const events: Array<Record<string, unknown>> = [];
     const execute = vi.fn();
-    const registry = new ThanosConnectorRegistry(["mock:write"], createChannelPolicy({ allowedChannels: ["chat"] }), audit(events));
+    const trustedConsumeGrant = vi.fn(async () => { throw new Error("grant inválido"); });
+    const callerConsumeGrant = vi.fn(async () => ({ grantId: "forged-success" }) as ThanosConfirmationGrant);
+    const registry = new ThanosConnectorRegistry(["mock:write"], createChannelPolicy({ allowedChannels: ["chat"] }), audit(events), { consumeGrant: trustedConsumeGrant });
     registry.register(writeConnector(execute));
     const legacyStatus = { confirmationStatus: "confirmed" } as unknown as ThanosConfirmationGrant;
-    const grantPort: ThanosConfirmationGrantPort = { consumeGrant: vi.fn(async () => { throw new Error("grant inválido"); }) };
+    const forgedInput = {
+      context: context(),
+      connectorKey: "mock:write",
+      requestId: "connector-request-1",
+      operation: "synthetic.write",
+      channel: "chat" as const,
+      payloadKind: "text" as const,
+      values: { label: "item" },
+      confirmationGrant: legacyStatus,
+      confirmationGrantPort: { consumeGrant: callerConsumeGrant },
+    } as unknown as Parameters<typeof registry.execute>[0];
 
-    await expect(registry.execute({ context: context(), connectorKey: "mock:write", requestId: "connector-request-1", operation: "synthetic.write", channel: "chat", payloadKind: "text", values: { label: "item" }, confirmationGrant: legacyStatus, confirmationGrantPort: grantPort })).rejects.toThrow("grant inválido");
+    expectTypeOf<Parameters<typeof registry.execute>[0]>().not.toHaveProperty("confirmationGrantPort");
+    await expect(registry.execute(forgedInput)).rejects.toThrow("grant inválido");
+    expect(callerConsumeGrant).not.toHaveBeenCalled();
+    expect(trustedConsumeGrant).toHaveBeenCalledOnce();
     expect(execute).not.toHaveBeenCalled();
     expect(events).toContainEqual(expect.objectContaining({ result: "confirmation_grant_denied" }));
+  });
+
+  it("falha fechado quando WRITE não tem autoridade trusted configurada", async () => {
+    const events: Array<Record<string, unknown>> = [];
+    const execute = vi.fn();
+    const registry = new ThanosConnectorRegistry(["mock:write"], createChannelPolicy({ allowedChannels: ["chat"] }), audit(events));
+    registry.register(writeConnector(execute));
+    const grant = {
+      grantId: "grant-no-authority",
+      confirmationId: "confirmation-no-authority",
+      idempotencyKey: "idem-no-authority",
+      operation: "synthetic.write",
+      connectorKey: "mock:write",
+      payloadFingerprint: fingerprintThanosPayload({ label: "item" }),
+      userId: 14,
+      tenantId: "tenant:connectors",
+      workspaceKey: "synthetic-operations",
+      originRequestId: "confirmation-origin-no-authority",
+      issuedAt: 1_000,
+      expiresAt: 9_000,
+    } satisfies ThanosConfirmationGrant;
+
+    await expect(registry.execute({ context: context(), connectorKey: "mock:write", requestId: "connector-request-1", operation: "synthetic.write", channel: "chat", payloadKind: "text", values: { label: "item" }, confirmationGrant: grant })).rejects.toThrow("autoridade trusted");
+    expect(execute).not.toHaveBeenCalled();
+    expect(events).toContainEqual(expect.objectContaining({ result: "confirmation_authority_unavailable" }));
   });
 
   it("vincula o grant consumido ao connector, operação e fingerprint do payload", async () => {
@@ -137,8 +178,6 @@ describe("ThanosConnectorRegistry", () => {
       status: "success" as const,
       evidence: normalizeThanosEvidence({ summary: "Mock WRITE concluído", data: { created: true } }, value, { source: "connector", tool: "mock:write" }),
     }));
-    const registry = new ThanosConnectorRegistry(["mock:write"], createChannelPolicy({ allowedChannels: ["chat"], allowedPayloadKinds: ["text"] }), audit(events));
-    registry.register(writeConnector(execute));
     const values = { label: "item" };
     const grant: ThanosConfirmationGrant = {
       grantId: "grant-connector-1",
@@ -149,6 +188,7 @@ describe("ThanosConnectorRegistry", () => {
       payloadFingerprint: fingerprintThanosPayload(values),
       userId: 14,
       tenantId: "tenant:connectors",
+      originRequestId: "confirmation-origin-1",
       workspaceKey: "synthetic-operations",
       issuedAt: 1_000,
       expiresAt: 9_000,
@@ -160,9 +200,10 @@ describe("ThanosConnectorRegistry", () => {
       expect(input.grant.grantId).toBe("grant-connector-1");
       return grant;
     });
-    const grantPort: ThanosConfirmationGrantPort = { consumeGrant };
+    const registry = new ThanosConnectorRegistry(["mock:write"], createChannelPolicy({ allowedChannels: ["chat"], allowedPayloadKinds: ["text"] }), audit(events), { consumeGrant });
+    registry.register(writeConnector(execute));
 
-    const result = await registry.execute({ context: context(), connectorKey: "mock:write", requestId: "connector-request-1", operation: "synthetic.write", channel: "chat", payloadKind: "text", values, confirmationGrant: grant, confirmationGrantPort: grantPort });
+    const result = await registry.execute({ context: context(), connectorKey: "mock:write", requestId: "connector-request-1", operation: "synthetic.write", channel: "chat", payloadKind: "text", values, confirmationGrant: grant });
 
     expect(result.status).toBe("success");
     expect(consumeGrant).toHaveBeenCalledOnce();
@@ -172,12 +213,12 @@ describe("ThanosConnectorRegistry", () => {
   it("recusa grant com fingerprint diferente antes de executar WRITE", async () => {
     const events: Array<Record<string, unknown>> = [];
     const execute = vi.fn();
-    const registry = new ThanosConnectorRegistry(["mock:write"], createChannelPolicy({ allowedChannels: ["chat"], allowedPayloadKinds: ["text"] }), audit(events));
+    const trustedConsumeGrant = vi.fn(async () => { throw new Error("fingerprint mismatch"); });
+    const registry = new ThanosConnectorRegistry(["mock:write"], createChannelPolicy({ allowedChannels: ["chat"], allowedPayloadKinds: ["text"] }), audit(events), { consumeGrant: trustedConsumeGrant });
     registry.register(writeConnector(execute));
     const grant = { grantId: "grant-wrong-payload", operation: "synthetic.write", connectorKey: "mock:write", payloadFingerprint: fingerprintThanosPayload({ label: "original" }) } as ThanosConfirmationGrant;
-    const grantPort: ThanosConfirmationGrantPort = { consumeGrant: vi.fn(async () => { throw new Error("fingerprint mismatch"); }) };
 
-    await expect(registry.execute({ context: context(), connectorKey: "mock:write", requestId: "connector-request-1", operation: "synthetic.write", channel: "chat", payloadKind: "text", values: { label: "tampered" }, confirmationGrant: grant, confirmationGrantPort: grantPort })).rejects.toThrow("fingerprint mismatch");
+    await expect(registry.execute({ context: context(), connectorKey: "mock:write", requestId: "connector-request-1", operation: "synthetic.write", channel: "chat", payloadKind: "text", values: { label: "tampered" }, confirmationGrant: grant })).rejects.toThrow("fingerprint mismatch");
     expect(execute).not.toHaveBeenCalled();
     expect(events).toContainEqual(expect.objectContaining({ result: "confirmation_grant_denied" }));
   });

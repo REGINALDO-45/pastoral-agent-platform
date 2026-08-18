@@ -80,7 +80,7 @@ describe("ThanosConfirmationEngine", () => {
     const executed = await engine.executeWithGrant({ context: createContext({ conversationId: 42, requestId: "execute-1" }), operation, value, grant: confirmed.grant!, requestId: "execute-1" });
 
     expect(pending).toMatchObject({ confirmationId: "confirmation-1", idempotencyKey: "idem-1", operation: "synthetic.write", connectorKey: "mock:write", status: "pending", createdAt: 1_000, expiresAt: 6_000, payloadFingerprint: fingerprintThanosPayload(value) });
-    expect(confirmed).toMatchObject({ confirmationId: "confirmation-1", idempotencyKey: "idem-1", status: "confirmed", grant: { grantId: "grant-1", operation: "synthetic.write", connectorKey: "mock:write", payloadFingerprint: fingerprintThanosPayload(value), userId: 7, conversationId: 42, tenantId: "tenant:one", workspaceKey: "synthetic-operations", issuedAt: 1_000, expiresAt: 6_000 } });
+    expect(confirmed).toMatchObject({ confirmationId: "confirmation-1", idempotencyKey: "idem-1", status: "confirmed", grant: { grantId: "grant-1", operation: "synthetic.write", connectorKey: "mock:write", payloadFingerprint: fingerprintThanosPayload(value), userId: 7, conversationId: 42, tenantId: "tenant:one", workspaceKey: "synthetic-operations", originRequestId: "prepare-1", issuedAt: 1_000, expiresAt: 6_000 } });
     expect(executed).toMatchObject({ status: "confirmed", grant: { grantId: "grant-1" } });
     expect(execute).toHaveBeenCalledOnce();
     expect(store.records.get("idem-1")?.grantConsumedAt).toBe(1_000);

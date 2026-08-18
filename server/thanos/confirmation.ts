@@ -15,6 +15,7 @@ export type ThanosConfirmationGrant = Readonly<{
   conversationId?: number;
   tenantId: string;
   workspaceKey: string;
+  originRequestId: string;
   issuedAt: number;
   expiresAt: number;
 }>;
@@ -301,6 +302,7 @@ export class ThanosConfirmationEngine<TInput, TPrepared, TResult> {
       ...(record.context.conversationId === undefined ? {} : { conversationId: record.context.conversationId }),
       tenantId: record.context.tenantId,
       workspaceKey: record.context.workspaceKey,
+      originRequestId: record.requestId,
       issuedAt,
       expiresAt: record.expiresAt,
     });

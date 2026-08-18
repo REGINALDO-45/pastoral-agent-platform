@@ -60,6 +60,7 @@ export class ThanosConnectorRegistry {
     private readonly allowedConnectorKeys: readonly string[],
     private readonly channelPolicy: ThanosChannelPolicy,
     private readonly audit: ThanosConnectorAuditPort,
+    private readonly trustedConfirmationGrantPort?: ThanosConfirmationGrantPort,
   ) {}
 
   register(connector: ThanosConnector): void {
@@ -86,7 +87,6 @@ export class ThanosConnectorRegistry {
     payloadKind: ThanosChannelPayloadKind;
     values?: Readonly<Record<string, string>>;
     confirmationGrant?: ThanosConfirmationGrant;
-    confirmationGrantPort?: ThanosConfirmationGrantPort;
   }>): Promise<ThanosConnectorExecutionResult> {
     const connector = this.connectors.get(input.connectorKey);
     if (!connector) {
@@ -116,12 +116,16 @@ export class ThanosConnectorRegistry {
 
     const values = Object.freeze({ ...(input.values ?? {}) });
     if (connector.manifest.intent === "WRITE") {
-      if (!input.confirmationGrant || !input.confirmationGrantPort) {
+      if (!input.confirmationGrant) {
         await this.recordDenied(input.context, connector.manifest.key, input.requestId, "confirmation_grant_required");
         throw new ThanosConnectorError("Connector WRITE exige grant de confirmação verificável.");
       }
+      if (!this.trustedConfirmationGrantPort) {
+        await this.recordDenied(input.context, connector.manifest.key, input.requestId, "confirmation_authority_unavailable");
+        throw new ThanosConnectorError("Connector WRITE está bloqueado: autoridade trusted de confirmação não configurada.");
+      }
       try {
-        await input.confirmationGrantPort.consumeGrant({
+        await this.trustedConfirmationGrantPort.consumeGrant({
           context: input.context,
           operation: input.operation,
           connectorKey: connector.manifest.key,
