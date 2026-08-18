@@ -159,6 +159,9 @@ export class ThanosGovernedActionRuntime {
   private async resolve(input: ThanosActionRuntimeRequest): Promise<ThanosActionOperationDefinition> {
     try {
       assertThanosActionIntent(input.intent);
+      if (input.intent.channel !== input.context.channel) {
+        throw new ThanosActionRuntimeError("Canal da intenção não corresponde ao canal trusted do contexto.");
+      }
       if (input.context.workspaceKey !== input.intent.workspaceKey) {
         throw new ThanosActionRuntimeError("Workspace da intenção não corresponde ao contexto trusted.");
       }
@@ -180,7 +183,7 @@ export class ThanosGovernedActionRuntime {
       }
       const envelope = createChannelEnvelope({
         context: input.context,
-        channel: input.intent.channel,
+        channel: input.context.channel,
         payloadKind: input.intent.payloadKind,
       });
       assertChannelAllowed(this.dependencies.channelPolicy, envelope);
@@ -207,7 +210,7 @@ export class ThanosGovernedActionRuntime {
   }
 
   private assertSkill(skill: SkillDefinition, context: ThanosContext, intent: ThanosActionIntent): void {
-    if (!skill.allowedChannels.includes(intent.channel as never)) {
+    if (!skill.allowedChannels.includes(context.channel as never)) {
       throw new ThanosActionRuntimeError("Canal não está na allowlist da skill.");
     }
     for (const capability of skill.requiredCapabilities) {
@@ -308,7 +311,7 @@ export class ThanosGovernedActionRuntime {
         connectorKey: operation.connectorKey,
         requestId: context.requestId,
         operation: operation.name,
-        channel: intent.channel,
+        channel: context.channel,
         payloadKind: intent.payloadKind,
         values: intent.payload,
       });
@@ -360,7 +363,7 @@ export class ThanosGovernedActionRuntime {
         connectorKey: operation.connectorKey,
         requestId: context.requestId,
         operation: operation.name,
-        channel: intent.channel,
+        channel: context.channel,
         payloadKind: intent.payloadKind,
         values: intent.payload,
         confirmationGrant: grant,

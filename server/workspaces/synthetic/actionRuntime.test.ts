@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createThanosActionIntent } from "../../thanos/actionIntent";
+import { createThanosActionIntent, type ThanosActionIntent } from "../../thanos/actionIntent";
 import { createThanosContext } from "../../thanos/context";
 import { toDomain, toTenantId, toWorkspaceKey } from "../../thanos/contextIdentity";
 import { createSyntheticActionRuntimeHarness } from "./actionRuntime";
@@ -29,7 +29,7 @@ function createIntent(input: Readonly<{
   });
 }
 
-function createContext(requestId: string, overrides: Readonly<{ userId?: number; tenantId?: string; workspaceKey?: string; capabilities?: readonly ("agent:read" | "agent:write")[]; conversationId?: number }> = {}) {
+function createContext(requestId: string, overrides: Readonly<{ userId?: number; tenantId?: string; workspaceKey?: string; capabilities?: readonly ("agent:read" | "agent:write")[]; conversationId?: number; channel?: "chat" | "voice" }> = {}) {
   return createThanosContext({
     workspaceKey: toWorkspaceKey(overrides.workspaceKey ?? workspaceKey),
     tenantId: toTenantId(overrides.tenantId ?? tenantId),
@@ -38,7 +38,7 @@ function createContext(requestId: string, overrides: Readonly<{ userId?: number;
     userName: "Usuário Sintético",
     role: "operator",
     capabilities: overrides.capabilities ?? ["agent:read", "agent:write"],
-    channel: "chat",
+    channel: overrides.channel ?? "chat",
     conversationId: overrides.conversationId ?? 77,
     requestId,
   });
@@ -310,8 +310,30 @@ describe("ThanosGovernedActionRuntime no workspace sintético", () => {
     expect(failureHarness.fixture.getWriteExecutionCount()).toBe(0);
   });
 
-  it("não aceita campos de autoridade no Action Intent nem contexto de outro domínio", async () => {
-    expect(() => createThanosActionIntent({
+  it("remove campos de autoridade do Action Intent e não os usa para conceder capability", async () => {
+    const intentWithAuthority = {
+      workspaceKey,
+      skillKey: "synthetic-operations-governed-write",
+      operation: "synthetic:item:create",
+      intent: "WRITE" as const,
+      connectorKey: "synthetic:item:create",
+      channel: "chat" as const,
+      payloadKind: "text" as const,
+      payload: { label: "authority" },
+      idempotencyKey: "runtime-authority",
+      capabilities: ["agent:write"],
+      platformCapabilities: ["platform:admin"],
+      role: "admin",
+      platformRole: "admin",
+      tenantId,
+      userId: 999,
+      authorization: "allow",
+      allowedTools: ["synthetic:item:create"],
+      allowedConnectors: ["synthetic:item:create"],
+    } as unknown as ThanosActionIntent & Record<string, unknown>;
+
+    const canonical = createThanosActionIntent(intentWithAuthority);
+    expect(canonical).toEqual({
       workspaceKey,
       skillKey: "synthetic-operations-governed-write",
       operation: "synthetic:item:create",
@@ -321,10 +343,33 @@ describe("ThanosGovernedActionRuntime no workspace sintético", () => {
       payloadKind: "text",
       payload: { label: "authority" },
       idempotencyKey: "runtime-authority",
-      // @ts-expect-error autoridade não faz parte do contrato declarativo.
-      capabilities: ["agent:write"],
-    })).not.toThrow();
+    });
+    for (const field of ["capabilities", "platformCapabilities", "role", "platformRole", "tenantId", "userId", "authorization", "allowedTools", "allowedConnectors"]) {
+      expect(canonical).not.toHaveProperty(field);
+    }
 
+    const harness = createSyntheticActionRuntimeHarness();
+    await expect(harness.runtime.run({
+      context: createContext("runtime-authority-no-capability", { capabilities: ["agent:read"] }),
+      intent: canonical,
+    })).rejects.toThrow("Capability não autorizada");
+  });
+
+  it("nega mismatch entre o canal do intent e o canal trusted do contexto", async () => {
+    const harness = createSyntheticActionRuntimeHarness();
+    const chatContext = createContext("runtime-channel-chat", { channel: "chat" });
+    const voiceIntent = createThanosActionIntent({
+      ...createIntent({ operation: "synthetic:item:list", intent: "READ", connectorKey: "listar_pendencias_sinteticas", payload: {} }),
+      channel: "voice",
+    });
+    await expect(harness.runtime.run({ context: chatContext, intent: voiceIntent })).rejects.toThrow("Canal da intenção não corresponde");
+
+    const voiceContext = createContext("runtime-channel-voice", { channel: "voice" });
+    const chatIntent = createIntent({ operation: "synthetic:item:list", intent: "READ", connectorKey: "listar_pendencias_sinteticas", payload: {} });
+    await expect(harness.runtime.run({ context: voiceContext, intent: chatIntent })).rejects.toThrow("Canal da intenção não corresponde");
+  });
+
+  it("nega contexto de outro domínio", async () => {
     const harness = createSyntheticActionRuntimeHarness();
     const foreignContext = createThanosContext({
       workspaceKey,

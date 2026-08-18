@@ -25,6 +25,8 @@ O Connector Registry é uma porta interna fechada: cada connector precisa de man
 
 O `ThanosGovernedActionRuntime` é a composição interna única para `Action Intent` READ/WRITE. Ele resolve no servidor o contexto, workspace, skill e operação trusted; valida a relação entre intent e catálogo, aplica channel policy e delega a execução ao Connector Registry. READ pode retornar evidência diretamente. WRITE retorna `confirmation_pending` sem executar, confirma somente por `confirmationId` e `idempotencyKey`, emite grant trusted e só então consome o grant durante a execução. Nenhuma authority, capability, tenant efetivo ou status textual enviado pelo caller é aceito como autorização. A prova atual usa o workspace `synthetic-operations`, connectors in-memory e nenhuma rota pública, banco, rede, Hermes, n8n ou efeito externo.
 
+`ThanosConfirmationGrant` é um artefato interno e trusted do servidor. Ele não deve ser serializado ou encaminhado diretamente para browser, WhatsApp, Telegram, webhook ou qualquer provider futuro; uma camada pública deverá expor somente um envelope/resposta sanitizado e channel-agnostic. Erros de connector e runtime também não devem chegar como erro bruto à UI futura, logs públicos ou providers: devem ser convertidos em resultado sanitizado, auditável e sem segredos.
+
 ## Dados e privacidade
 
 | Dado | Tratamento |

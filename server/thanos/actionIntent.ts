@@ -28,8 +28,15 @@ export class ThanosActionIntentError extends Error {
 export function createThanosActionIntent(input: ThanosActionIntent): ThanosActionIntent {
   assertThanosActionIntent(input);
   return Object.freeze({
-    ...input,
+    workspaceKey: input.workspaceKey,
+    skillKey: input.skillKey,
+    operation: input.operation,
+    intent: input.intent,
+    connectorKey: input.connectorKey,
+    channel: input.channel,
+    payloadKind: input.payloadKind,
     payload: Object.freeze({ ...input.payload }),
+    ...(input.idempotencyKey === undefined ? {} : { idempotencyKey: input.idempotencyKey }),
   });
 }
 
