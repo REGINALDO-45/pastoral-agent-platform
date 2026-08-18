@@ -175,3 +175,100 @@
     }
   }
 }
+
+/* THÁNOS experience layer: presentation tokens only; authority remains server-side. */
+:root {
+  --thanos-ink: oklch(0.16 0.025 270);
+  --thanos-ink-soft: oklch(0.25 0.035 270);
+  --thanos-signal: oklch(0.72 0.14 258);
+  --thanos-signal-soft: oklch(0.9 0.06 258);
+  --thanos-lilac: oklch(0.76 0.12 304);
+  --thanos-amber: oklch(0.82 0.15 86);
+  --thanos-success: oklch(0.74 0.14 154);
+}
+
+.dark {
+  --thanos-ink: oklch(0.12 0.025 270);
+  --thanos-ink-soft: oklch(0.2 0.035 270);
+  --thanos-signal: oklch(0.75 0.14 258);
+  --thanos-signal-soft: oklch(0.29 0.055 258);
+  --thanos-lilac: oklch(0.78 0.12 304);
+  --thanos-amber: oklch(0.84 0.15 86);
+  --thanos-success: oklch(0.78 0.14 154);
+}
+
+@layer components {
+  .thanos-app-shell {
+    background: radial-gradient(circle at 86% 6%, color-mix(in oklch, var(--thanos-signal) 10%, transparent), transparent 28rem), radial-gradient(circle at 12% 96%, color-mix(in oklch, var(--thanos-lilac) 8%, transparent), transparent 26rem), var(--background);
+  }
+
+  .thanos-mark { display: inline-flex; align-items: center; gap: 0.65rem; color: var(--foreground); }
+  .thanos-mark-compact { gap: 0; }
+  .thanos-mark-core { position: relative; display: grid; place-items: center; width: 2rem; height: 2rem; border: 1px solid color-mix(in oklch, var(--thanos-signal) 65%, transparent); border-radius: 0.75rem; background: linear-gradient(145deg, color-mix(in oklch, var(--thanos-signal) 30%, transparent), color-mix(in oklch, var(--thanos-lilac) 18%, transparent)); box-shadow: 0 0 24px color-mix(in oklch, var(--thanos-signal) 18%, transparent), inset 0 1px 0 color-mix(in oklch, white 22%, transparent); }
+  .thanos-mark-core::before, .thanos-mark-core::after, .thanos-mark-core span { content: ""; position: absolute; width: 0.48rem; height: 0.48rem; border: 1px solid color-mix(in oklch, white 75%, var(--thanos-signal)); transform: rotate(45deg); }
+  .thanos-mark-core::before { top: 0.24rem; left: 0.7rem; }
+  .thanos-mark-core::after { bottom: 0.24rem; left: 0.7rem; }
+  .thanos-mark-core span { left: 0.7rem; top: 0.76rem; background: color-mix(in oklch, var(--thanos-signal) 45%, transparent); }
+  .thanos-mark-word { font-size: 0.76rem; font-weight: 700; letter-spacing: 0.24em; }
+  .thanos-eyebrow { color: color-mix(in oklch, var(--thanos-signal) 76%, var(--muted-foreground)); font-size: 0.64rem; font-weight: 700; letter-spacing: 0.18em; line-height: 1.2; text-transform: uppercase; }
+  .thanos-kicker-dot { display: inline-block; width: 0.42rem; height: 0.42rem; border-radius: 999px; background: var(--thanos-signal); box-shadow: 0 0 0 4px color-mix(in oklch, var(--thanos-signal) 12%, transparent); }
+
+  .thanos-status { display: inline-flex; align-items: center; gap: 0.4rem; white-space: nowrap; font-size: 0.7rem; font-weight: 600; }
+  .thanos-status-dot { width: 0.42rem; height: 0.42rem; border-radius: 999px; background: currentColor; box-shadow: 0 0 0 4px color-mix(in oklch, currentColor 12%, transparent); }
+  .thanos-status-positive { color: var(--thanos-success); }
+  .thanos-status-pending { color: var(--thanos-amber); }
+  .thanos-status-disabled { color: var(--muted-foreground); }
+  .thanos-status-muted { color: color-mix(in oklch, var(--thanos-lilac) 75%, var(--muted-foreground)); }
+
+  .thanos-card { border-color: color-mix(in oklch, var(--border) 75%, var(--thanos-signal) 5%); background: color-mix(in oklch, var(--card) 88%, transparent); box-shadow: 0 18px 48px color-mix(in oklch, black 12%, transparent); backdrop-filter: blur(18px); }
+  .thanos-card:hover { border-color: color-mix(in oklch, var(--border) 50%, var(--thanos-signal) 20%); }
+  .thanos-icon-box { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 2.25rem; height: 2.25rem; border-radius: 0.8rem; }
+  .thanos-icon-box-primary { color: var(--thanos-signal); background: color-mix(in oklch, var(--thanos-signal) 13%, transparent); }
+  .thanos-icon-box-success { color: var(--thanos-success); background: color-mix(in oklch, var(--thanos-success) 13%, transparent); }
+  .thanos-icon-box-warning { color: var(--thanos-amber); background: color-mix(in oklch, var(--thanos-amber) 14%, transparent); }
+  .thanos-icon-box-muted { color: var(--muted-foreground); background: color-mix(in oklch, var(--muted) 72%, transparent); }
+  .thanos-icon-box-jewel { color: var(--thanos-lilac); background: color-mix(in oklch, var(--thanos-lilac) 14%, transparent); }
+  .thanos-icon-box-power { color: var(--thanos-signal); background: color-mix(in oklch, var(--thanos-signal) 14%, transparent); }
+  .thanos-icon-box-positive { color: var(--thanos-success); background: color-mix(in oklch, var(--thanos-success) 13%, transparent); }
+  .thanos-icon-box-primary, .thanos-icon-box-violet, .thanos-icon-box-amber { background: color-mix(in oklch, var(--thanos-signal) 13%, transparent); color: var(--thanos-signal); }
+  .thanos-icon-box-violet { color: var(--thanos-lilac); background: color-mix(in oklch, var(--thanos-lilac) 14%, transparent); }
+  .thanos-icon-box-amber { color: var(--thanos-amber); background: color-mix(in oklch, var(--thanos-amber) 14%, transparent); }
+
+  .thanos-badge { background: transparent; font-size: 0.68rem; }
+  .thanos-badge-available { border-color: color-mix(in oklch, var(--thanos-success) 35%, transparent); color: var(--thanos-success); background: color-mix(in oklch, var(--thanos-success) 8%, transparent); }
+  .thanos-badge-pending { border-color: color-mix(in oklch, var(--thanos-amber) 40%, transparent); color: var(--thanos-amber); background: color-mix(in oklch, var(--thanos-amber) 9%, transparent); }
+  .thanos-badge-disabled, .thanos-badge-soon { border-color: color-mix(in oklch, var(--muted-foreground) 30%, transparent); color: var(--muted-foreground); background: color-mix(in oklch, var(--muted) 45%, transparent); }
+  .thanos-badge-online { border-color: color-mix(in oklch, var(--thanos-success) 35%, transparent); color: var(--thanos-success); }
+
+  .thanos-nav-item { display: flex; min-height: 2.7rem; width: 100%; align-items: center; gap: 0.75rem; border: 1px solid transparent; border-radius: 0.85rem; padding: 0.65rem 0.75rem; color: var(--muted-foreground); text-align: left; font-size: 0.82rem; transition: color 160ms ease, background 160ms ease, border-color 160ms ease, transform 160ms ease; }
+  .thanos-nav-item:hover { color: var(--foreground); background: color-mix(in oklch, var(--muted) 60%, transparent); transform: translateX(1px); }
+  .thanos-nav-item-active { color: var(--foreground); border-color: color-mix(in oklch, var(--thanos-signal) 25%, transparent); background: linear-gradient(100deg, color-mix(in oklch, var(--thanos-signal) 13%, transparent), color-mix(in oklch, var(--thanos-lilac) 6%, transparent)); box-shadow: inset 3px 0 0 var(--thanos-signal), 0 8px 24px color-mix(in oklch, var(--thanos-signal) 8%, transparent); }
+  .thanos-nav-item-mobile { min-height: 3rem; }
+  .thanos-workspace-pill { display: flex; align-items: center; gap: 0.65rem; border: 1px solid var(--border); border-radius: 1rem; background: color-mix(in oklch, var(--card) 78%, transparent); padding: 0.55rem 0.7rem; text-align: left; transition: border-color 160ms ease, transform 160ms ease; }
+  .thanos-workspace-pill:hover { border-color: color-mix(in oklch, var(--thanos-signal) 35%, var(--border)); transform: translateY(-1px); }
+  .thanos-list-item { display: flex; align-items: center; gap: 0.75rem; border-radius: 1rem; padding: 0.75rem; transition: background 160ms ease; }
+  .thanos-list-item:hover { background: color-mix(in oklch, var(--muted) 55%, transparent); }
+  .thanos-evidence-card { background: linear-gradient(145deg, color-mix(in oklch, var(--card) 90%, transparent), color-mix(in oklch, var(--thanos-signal) 5%, var(--card))); }
+  .thanos-confirmation-card { border-color: color-mix(in oklch, var(--thanos-amber) 33%, transparent); background: radial-gradient(circle at 80% 20%, color-mix(in oklch, var(--thanos-amber) 14%, transparent), transparent 14rem), linear-gradient(145deg, oklch(0.16 0.025 270), oklch(0.12 0.02 280)); box-shadow: 0 18px 55px color-mix(in oklch, var(--thanos-amber) 9%, transparent); }
+  .thanos-confirmation-blocked { opacity: 0.92; }
+  .thanos-error-notice { display: flex; flex-direction: column; justify-content: space-between; gap: 0.75rem; border: 1px solid color-mix(in oklch, var(--destructive) 30%, transparent); border-radius: 1rem; background: color-mix(in oklch, var(--destructive) 7%, var(--card)); padding: 1rem; }
+  .thanos-empty-icon { display: inline-flex; align-items: center; justify-content: center; width: 3.5rem; height: 3.5rem; border: 1px solid color-mix(in oklch, var(--thanos-signal) 30%, transparent); border-radius: 1.15rem; color: var(--thanos-signal); background: color-mix(in oklch, var(--thanos-signal) 12%, transparent); box-shadow: 0 0 35px color-mix(in oklch, var(--thanos-signal) 14%, transparent); }
+  .thanos-orbit { position: absolute; pointer-events: none; border: 1px solid color-mix(in oklch, var(--thanos-signal) 10%, transparent); border-radius: 999px; transform: rotate(-22deg); }
+  .thanos-orbit-one { top: 3rem; right: -20rem; width: 42rem; height: 16rem; }
+  .thanos-orbit-two { bottom: 4rem; left: -18rem; width: 36rem; height: 13rem; border-color: color-mix(in oklch, var(--thanos-lilac) 8%, transparent); transform: rotate(24deg); }
+  .thanos-voice-hero { overflow: hidden; background: radial-gradient(circle at 50% 40%, color-mix(in oklch, var(--thanos-signal) 10%, transparent), transparent 15rem), var(--card); }
+  .thanos-voice-orb { display: grid; place-items: center; width: 9rem; height: 9rem; border: 1px solid color-mix(in oklch, var(--thanos-signal) 30%, transparent); border-radius: 999px; background: radial-gradient(circle, color-mix(in oklch, var(--thanos-signal) 24%, transparent), transparent 68%); box-shadow: 0 0 0 1rem color-mix(in oklch, var(--thanos-signal) 5%, transparent), 0 0 70px color-mix(in oklch, var(--thanos-signal) 25%, transparent); animation: thanos-breathe 4s ease-in-out infinite; }
+  .thanos-voice-orb-core { display: grid; place-items: center; width: 4.6rem; height: 4.6rem; border: 1px solid color-mix(in oklch, var(--thanos-signal) 45%, transparent); border-radius: 999px; color: var(--thanos-signal); background: color-mix(in oklch, var(--thanos-signal) 13%, var(--card)); }
+  @keyframes thanos-breathe { 0%, 100% { transform: scale(0.98); opacity: 0.88; } 50% { transform: scale(1.03); opacity: 1; } }
+  .thanos-mobile-header { min-height: 4.5rem; }
+  :is(.thanos-app-shell) button:focus-visible, :is(.thanos-app-shell) a:focus-visible, :is(.thanos-app-shell) [role="button"]:focus-visible { outline: 2px solid var(--thanos-signal); outline-offset: 3px; }
+
+  @media (min-width: 640px) { .thanos-error-notice { flex-direction: row; align-items: center; } }
+  @media (max-width: 639px) { .thanos-workspace-pill { width: 100%; } .thanos-orbit { display: none; } }
+  @media (prefers-reduced-motion: reduce) { .thanos-voice-orb, .thanos-nav-item, .thanos-workspace-pill { animation: none; transition: none; } }
+}
+
+@layer components {
+  .thanos-command-chat .max-w-2xl > button { border-color: color-mix(in oklch, var(--thanos-signal) 22%, var(--border)); background: color-mix(in oklch, var(--thanos-signal) 8%, var(--card)); color: var(--foreground); }
+  .thanos-command-chat .max-w-2xl > button:hover { border-color: color-mix(in oklch, var(--thanos-signal) 42%, var(--border)); background: color-mix(in oklch, var(--thanos-signal) 14%, var(--card)); }
+}
