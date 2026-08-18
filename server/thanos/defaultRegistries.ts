@@ -5,6 +5,13 @@ import {
   pastoralWorkspaceDefinition,
   type PastoralWorkspaceSource,
 } from "../workspaces/pastoral/workspaceDefinition";
+import {
+  syntheticSkillDefinition,
+  syntheticWorkspaceDefinition,
+  type SyntheticWorkspaceSource,
+} from "../workspaces/synthetic/workspaceDefinition";
 
-export const thanosWorkspaceRegistry = new WorkspaceRegistry<PastoralWorkspaceSource>([pastoralWorkspaceDefinition]);
-export const thanosSkillRegistry = new SkillRegistry([pastoralSkillDefinition]);
+export type ThanosWorkspaceSource = PastoralWorkspaceSource | SyntheticWorkspaceSource;
+
+export const thanosWorkspaceRegistry = new WorkspaceRegistry<ThanosWorkspaceSource>([pastoralWorkspaceDefinition, syntheticWorkspaceDefinition]);
+export const thanosSkillRegistry = new SkillRegistry([pastoralSkillDefinition, syntheticSkillDefinition]);

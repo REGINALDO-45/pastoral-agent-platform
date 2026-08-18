@@ -1,4 +1,5 @@
 import type { ThanosChannel, ThanosContext } from "./contracts";
+import { createPlatformAccess, assertPlatformCapability, type PlatformCapability, type PlatformRole } from "./platformAccess";
 import { createThanosContextIdentity, type Domain, type TenantId, type WorkspaceKey } from "./contextIdentity";
 
 export type CreateThanosContextInput = Readonly<{
@@ -9,6 +10,8 @@ export type CreateThanosContextInput = Readonly<{
   userName: string;
   role: string;
   capabilities: readonly string[];
+  platformRole?: PlatformRole;
+  platformCapabilities?: readonly string[];
   channel: ThanosChannel;
   conversationId?: number;
   requestId: string;
@@ -29,12 +32,16 @@ export function createThanosContext(input: CreateThanosContextInput): ThanosCont
     throw new Error("conversationId deve ser um inteiro positivo quando informado.");
   }
 
+  const platformAccess = createPlatformAccess({ role: input.platformRole, capabilities: input.platformCapabilities });
+
   return Object.freeze({
     ...createThanosContextIdentity(input),
     userId: input.userId,
     userName: input.userName,
     role: input.role,
     capabilities: uniqueCapabilities(input.capabilities) as ThanosContext["capabilities"],
+    platformRole: platformAccess.role,
+    platformCapabilities: platformAccess.capabilities,
     channel: input.channel,
     ...(input.conversationId === undefined ? {} : { conversationId: input.conversationId }),
     requestId: input.requestId,
@@ -45,4 +52,8 @@ export function assertThanosCapability(context: ThanosContext, capability: strin
   if (!context.capabilities.includes(capability as ThanosContext["capabilities"][number])) {
     throw new Error("Capability não autorizada para o contexto THÁNOS.");
   }
+}
+
+export function assertThanosPlatformCapability(context: ThanosContext, capability: PlatformCapability): void {
+  assertPlatformCapability({ role: context.platformRole, capabilities: context.platformCapabilities }, capability);
 }
