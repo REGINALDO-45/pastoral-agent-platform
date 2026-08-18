@@ -19,39 +19,18 @@ export const TELEGRAM_POLICY = Object.freeze({
   transport: TELEGRAM_TRANSPORT,
   modality: TELEGRAM_MODALITY,
   intent: "READ" as const,
-  allowedTools: Object.freeze([TELEGRAM_READ_TOOL]),
+  allowedTools: Object.freeze([TELEGRAM_READ_TOOL] as const),
   writeEnabled: false as const,
   sensitiveEnabled: false as const,
   publicIngress: false as const,
 });
 
-const MAX_TELEGRAM_TEXT_LENGTH = 4096;
-const FORBIDDEN_AUTHORITY_KEYS = new Set([
-  "tenantId",
-  "workspaceKey",
-  "domain",
-  "role",
-  "capabilities",
-  "platformRole",
-  "platformCapabilities",
-  "userId",
-  "organizationId",
-  "channel",
-  "requestId",
-  "claimedTenantId",
-  "claimedWorkspaceKey",
-  "claimedDomain",
-  "claimedRole",
-  "claimedCapabilities",
-  "claimedPlatformRole",
-  "claimedPlatformCapabilities",
-]);
-
-type TelegramLinkState = "linked" | "unlinked" | "disabled";
+export type TelegramChatType = "private" | "group" | "supergroup" | "channel";
 
 export type TelegramInboundInput = Readonly<{
   transport: ThanosTransport;
   modality: ThanosModality;
+  chatType: TelegramChatType;
   telegramUserId: string;
   telegramChatId: string;
   text: string;
@@ -73,6 +52,17 @@ export type TelegramInboundInput = Readonly<{
   requestId?: string;
 }>;
 
+export type TelegramIngressVerification = Readonly<
+  | { status: "verified" }
+  | { status: "unverified"; reason: string }
+  | { status: "missing"; reason: string }
+  | { status: "invalid"; reason: string }
+>;
+
+export type TelegramIngressVerifier = Readonly<{
+  verify(input: TelegramInboundInput): Promise<TelegramIngressVerification>;
+}>;
+
 export type TelegramLinkedIdentity = Readonly<{
   telegramUserId: string;
   telegramChatId: string;
@@ -90,6 +80,13 @@ export type TelegramIdentityResolver = Readonly<{
   resolve(input: Readonly<{ telegramUserId: string; telegramChatId: string }>): Promise<TelegramIdentityResolution>;
 }>;
 
+export type TelegramAuditContext = Readonly<{
+  workspaceKey: string;
+  tenantId: string;
+  channel: "chat";
+  conversationId?: number;
+}>;
+
 export type TelegramAuditEvent = Readonly<{
   action: "telegram.ingress.accepted" | "telegram.ingress.denied" | "telegram.read.completed" | "telegram.read.failed";
   status: "success" | "denied" | "failure";
@@ -98,7 +95,7 @@ export type TelegramAuditEvent = Readonly<{
   modality: typeof TELEGRAM_MODALITY;
   result: string;
   reason?: string;
-  context?: ThanosContext;
+  sanitizedContext?: TelegramAuditContext;
   metadata?: Readonly<Record<string, string>>;
 }>;
 
@@ -113,6 +110,7 @@ export type TelegramAdapterResult = Readonly<{
   modality: typeof TELEGRAM_MODALITY;
   content: string;
   tool?: typeof TELEGRAM_READ_TOOL;
+  evidence?: Readonly<{ tool: typeof TELEGRAM_READ_TOOL; summary: string }>;
   provider?: "deterministic";
   model?: typeof TELEGRAM_READ_MODEL;
   reason?: string;
@@ -146,6 +144,23 @@ export class InMemoryTelegramIdentityResolver implements TelegramIdentityResolve
   }
 }
 
+export class SyntheticTelegramIngressVerifier implements TelegramIngressVerifier {
+  async verify(input: TelegramInboundInput): Promise<TelegramIngressVerification> {
+    if (!input) return Object.freeze({ status: "missing", reason: "ingress_verification_missing" });
+    if (input.transport !== TELEGRAM_TRANSPORT || input.modality !== TELEGRAM_MODALITY) {
+      return Object.freeze({ status: "invalid", reason: "telegram_text_transport_required" });
+    }
+    if (input.chatType !== "private") {
+      return Object.freeze({ status: "invalid", reason: "private_chat_only" });
+    }
+    if (typeof input.telegramUserId !== "string" || typeof input.telegramChatId !== "string" || typeof input.text !== "string") {
+      return Object.freeze({ status: "invalid", reason: "telegram_fields_invalid" });
+    }
+    if (!input.text.trim()) return Object.freeze({ status: "invalid", reason: "text_empty" });
+    return Object.freeze({ status: "verified" });
+  }
+}
+
 function telegramIdentityKey(telegramUserId: string, telegramChatId: string): string {
   const user = normalizeExternalId(telegramUserId, "telegramUserId");
   const chat = normalizeExternalId(telegramChatId, "telegramChatId");
@@ -167,15 +182,26 @@ function forbiddenAuthorityKey(input: TelegramInboundInput): string | undefined 
 }
 
 function validateTelegramInput(input: TelegramInboundInput): void {
+  if (!input) throw new TelegramIngressDeniedError("ingress_missing");
   if (input.transport !== TELEGRAM_POLICY.transport) throw new TelegramIngressDeniedError("transport_not_allowed");
   if (input.modality !== TELEGRAM_POLICY.modality) throw new TelegramIngressDeniedError("modality_not_allowed");
+  if (input.chatType !== "private") throw new TelegramIngressDeniedError("private_chat_only");
   const forgedKey = forbiddenAuthorityKey(input);
   if (forgedKey) throw new TelegramIngressDeniedError(`untrusted_authority_field:${forgedKey}`);
   normalizeExternalId(input.telegramUserId, "telegramUserId");
   normalizeExternalId(input.telegramChatId, "telegramChatId");
   if (input.blockId !== undefined) normalizeExternalId(input.blockId, "blockId");
   if (!input.text.trim()) throw new TelegramIngressDeniedError("text_empty");
-  if (input.text.length > MAX_TELEGRAM_TEXT_LENGTH) throw new TelegramIngressDeniedError("text_too_long");
+  if (input.text.length > 4096) throw new TelegramIngressDeniedError("text_too_long");
+}
+
+function sanitizeTelegramContext(context: ThanosContext): TelegramAuditContext {
+  return Object.freeze({
+    workspaceKey: String(context.workspaceKey),
+    tenantId: String(context.tenantId),
+    channel: "chat" as const,
+    ...(context.conversationId === undefined ? {} : { conversationId: context.conversationId }),
+  });
 }
 
 function createDeterministicGenerator(): ThanosGeneratorPort {
@@ -205,7 +231,7 @@ function mapReadAuditEvent(event: Readonly<{
     transport: TELEGRAM_TRANSPORT,
     modality: TELEGRAM_MODALITY,
     result: event.result,
-    context: event.context,
+    sanitizedContext: sanitizeTelegramContext(event.context),
     metadata: Object.freeze({
       tool: event.tool,
       ...(event.provider === undefined ? {} : { provider: event.provider }),
@@ -214,15 +240,38 @@ function mapReadAuditEvent(event: Readonly<{
   });
 }
 
+const FORBIDDEN_AUTHORITY_KEYS = new Set([
+  "tenantId",
+  "workspaceKey",
+  "domain",
+  "role",
+  "capabilities",
+  "platformRole",
+  "platformCapabilities",
+  "userId",
+  "organizationId",
+  "channel",
+  "requestId",
+  "claimedTenantId",
+  "claimedWorkspaceKey",
+  "claimedDomain",
+  "claimedRole",
+  "claimedCapabilities",
+  "claimedPlatformRole",
+  "claimedPlatformCapabilities",
+]);
+
 export class TelegramChannelAdapter {
   private readonly readOrchestrator: ThanosReadOrchestrator;
   private readonly generator = createDeterministicGenerator();
   private readonly processedBlocks = new Map<string, TelegramAdapterResult>();
+  private readonly inFlightBlocks = new Map<string, Promise<TelegramAdapterResult>>();
 
   constructor(
     private readonly input: Readonly<{
       repository: PastoralRepository;
       identityResolver: TelegramIdentityResolver;
+      ingressVerifier?: TelegramIngressVerifier;
       audit: TelegramAuditPort;
       toolCatalog?: readonly ToolCatalogEntry[];
       readTool?: ReadPastoralToolName;
@@ -236,6 +285,13 @@ export class TelegramChannelAdapter {
 
   async handle(input: TelegramInboundInput): Promise<TelegramAdapterResult> {
     const requestId = this.input.requestIdFactory?.() ?? randomUUID();
+    const verification = await this.verifyIngress(input);
+    if (verification.status !== "verified") {
+      const reason = verification.reason;
+      await this.recordDenied(requestId, reason);
+      return this.denied(requestId, reason);
+    }
+
     try {
       validateTelegramInput(input);
     } catch (error) {
@@ -244,14 +300,43 @@ export class TelegramChannelAdapter {
       return this.denied(requestId, reason);
     }
 
+    const requestedTool = this.input.readTool ?? TELEGRAM_READ_TOOL;
+    const allowedTools: readonly ReadPastoralToolName[] = TELEGRAM_POLICY.allowedTools;
+    if (!allowedTools.includes(requestedTool)) {
+      await this.recordDenied(requestId, "tool_not_allowed");
+      return this.denied(requestId, "tool_not_allowed");
+    }
+    const tool = allowedTools[0] as typeof TELEGRAM_READ_TOOL;
     const blockId = input.blockId?.trim();
     if (blockId) {
       const previous = this.processedBlocks.get(blockId);
-      if (previous) {
-        return Object.freeze({ ...previous, status: "duplicate" as const, reason: "duplicate_block_id" });
+      if (previous) return this.duplicate(previous);
+      const inFlight = this.inFlightBlocks.get(blockId);
+      if (inFlight) return this.duplicate(await inFlight);
+      const execution = this.executeRead(input, requestId, tool);
+      this.inFlightBlocks.set(blockId, execution);
+      try {
+        const result = await execution;
+        if (result.status === "completed") this.processedBlocks.set(blockId, result);
+        return result;
+      } finally {
+        this.inFlightBlocks.delete(blockId);
       }
     }
 
+    return this.executeRead(input, requestId, tool);
+  }
+
+  private async verifyIngress(input: TelegramInboundInput): Promise<TelegramIngressVerification> {
+    if (!this.input.ingressVerifier) return Object.freeze({ status: "missing", reason: "ingress_verification_missing" });
+    try {
+      return await this.input.ingressVerifier.verify(input);
+    } catch {
+      return Object.freeze({ status: "invalid", reason: "ingress_verification_invalid" });
+    }
+  }
+
+  private async executeRead(input: TelegramInboundInput, requestId: string, tool: typeof TELEGRAM_READ_TOOL): Promise<TelegramAdapterResult> {
     const resolution = await this.input.identityResolver.resolve({ telegramUserId: input.telegramUserId, telegramChatId: input.telegramChatId });
     if (resolution.status !== "linked") {
       await this.recordDenied(requestId, resolution.reason);
@@ -264,7 +349,6 @@ export class TelegramChannelAdapter {
       conversationId: resolution.identity.conversationId,
       serverRequestId: requestId,
     });
-    const tool = this.input.readTool ?? TELEGRAM_READ_TOOL;
     const pastoralTool = createPastoralDeclaredReadToolAdapter({
       repository: this.input.repository,
       tenantContext: resolution.identity.tenantContext,
@@ -281,7 +365,8 @@ export class TelegramChannelAdapter {
       transport: TELEGRAM_TRANSPORT,
       modality: TELEGRAM_MODALITY,
       result: "linked_identity_resolved",
-      context: thanosContext,
+      sanitizedContext: sanitizeTelegramContext(thanosContext),
+      metadata: Object.freeze({ tool }),
     }));
 
     try {
@@ -292,21 +377,25 @@ export class TelegramChannelAdapter {
         user: input.text,
         generator: this.generator,
       });
-      const completed = Object.freeze({
+      if (result.tool !== tool) throw new Error("Ferramenta executada divergente da policy Telegram.");
+      return Object.freeze({
         status: "completed" as const,
         requestId,
         transport: TELEGRAM_TRANSPORT,
         modality: TELEGRAM_MODALITY,
         content: result.content,
-        tool: TELEGRAM_READ_TOOL,
+        tool: result.tool as typeof TELEGRAM_READ_TOOL,
+        evidence: Object.freeze({ tool: result.tool as typeof TELEGRAM_READ_TOOL, summary: result.evidence.summary }),
         provider: "deterministic" as const,
         model: TELEGRAM_READ_MODEL,
       });
-      if (blockId) this.processedBlocks.set(blockId, completed);
-      return completed;
     } catch {
       return this.denied(requestId, "read_failed");
     }
+  }
+
+  private duplicate(result: TelegramAdapterResult): TelegramAdapterResult {
+    return Object.freeze({ ...result, status: "duplicate" as const, reason: "duplicate_block_id" });
   }
 
   private async recordDenied(requestId: string, reason: string): Promise<void> {
