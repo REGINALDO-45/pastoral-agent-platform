@@ -67,7 +67,7 @@ export type TelegramLinkedIdentity = Readonly<{
   telegramUserId: string;
   telegramChatId: string;
   tenantContext: TenantContext;
-  conversationId: number;
+  conversationId?: number;
 }>;
 
 export type TelegramIdentityResolution = Readonly<
