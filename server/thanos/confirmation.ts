@@ -340,7 +340,22 @@ export class ThanosConfirmationEngine<TInput, TPrepared, TResult> {
     requestId: string;
   }>): Promise<ThanosConfirmationRecord<TPrepared>> {
     const record = await this.store.get(input.grant.idempotencyKey);
-    if (!record || !record.grant || record.grant.grantId !== input.grant.grantId || record.grant.confirmationId !== input.grant.confirmationId || record.grant.operation !== input.operation || record.grant.connectorKey !== input.connectorKey || record.grant.payloadFingerprint !== input.payloadFingerprint || input.grant.payloadFingerprint !== input.payloadFingerprint) {
+    const persistedGrant = record?.grant;
+    const grantMatchesPersisted = persistedGrant !== undefined &&
+      persistedGrant.grantId === input.grant.grantId &&
+      persistedGrant.confirmationId === input.grant.confirmationId &&
+      persistedGrant.idempotencyKey === input.grant.idempotencyKey &&
+      persistedGrant.operation === input.grant.operation &&
+      persistedGrant.connectorKey === input.grant.connectorKey &&
+      persistedGrant.payloadFingerprint === input.grant.payloadFingerprint &&
+      persistedGrant.userId === input.grant.userId &&
+      persistedGrant.conversationId === input.grant.conversationId &&
+      persistedGrant.tenantId === input.grant.tenantId &&
+      persistedGrant.workspaceKey === input.grant.workspaceKey &&
+      persistedGrant.originRequestId === input.grant.originRequestId &&
+      persistedGrant.issuedAt === input.grant.issuedAt &&
+      persistedGrant.expiresAt === input.grant.expiresAt;
+    if (!record || !persistedGrant || !grantMatchesPersisted || record.grant.operation !== input.operation || record.grant.connectorKey !== input.connectorKey || record.grant.payloadFingerprint !== input.payloadFingerprint || input.grant.payloadFingerprint !== input.payloadFingerprint) {
       await this.record(input.context, "thanos.confirm.denied", "denied", input.operation, input.requestId, "confirmation_grant_binding_mismatch");
       throw new ThanosConfirmationError("Grant de confirmação não corresponde à operação, connector ou payload.");
     }
