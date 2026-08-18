@@ -7,7 +7,7 @@ import { ChevronDown, Menu, MessageSquareText, PanelLeftClose, PanelLeftOpen, Sh
 import { useState } from "react";
 import { ThanosMark, StatusDot } from "./ThanosPrimitives";
 
-export type ExperienceMode = "user" | "superadmin";
+export type ExperienceMode = "user" | "admin";
 export type ExperienceSection = "chat" | "history" | "workspace" | "voice" | "overview" | "workspaces" | "jewels" | "powers" | "providers" | "channels" | "audit" | "system";
 
 type NavItem = { id: ExperienceSection; label: string; icon: typeof MessageSquareText; badge?: string };
@@ -31,7 +31,7 @@ const adminNav: NavItem[] = [
 ];
 
 export function getExperienceNavigation(mode: ExperienceMode) {
-  return mode === "superadmin" ? adminNav : userNav;
+  return mode === "admin" ? adminNav : userNav;
 }
 
 export function ThanosExperienceLayout({
@@ -64,7 +64,7 @@ export function ThanosExperienceLayout({
   };
 
   const navigation = (mobile = false) => (
-    <nav aria-label={mode === "superadmin" ? "Administração THÁNOS" : "Navegação THÁNOS"} className="flex flex-col gap-1">
+    <nav aria-label={mode === "admin" ? "Administração do tenant THÁNOS" : "Navegação THÁNOS"} className="flex flex-col gap-1">
       {navItems.map(item => {
         const active = item.id === activeSection;
         return (
@@ -95,7 +95,7 @@ export function ThanosExperienceLayout({
           {!collapsed ? <Button variant="ghost" size="icon" onClick={() => setCollapsed(true)} className="size-8 rounded-lg text-muted-foreground hover:text-foreground" aria-label="Recolher menu"><PanelLeftClose className="size-4" /></Button> : null}
         </div>
         <div className="flex-1 overflow-y-auto px-3 py-5">
-          {!collapsed ? <div className="mb-5 px-3"><p className="thanos-eyebrow">{mode === "superadmin" ? "Control room" : "Command center"}</p><div className="mt-2 flex items-center gap-2"><StatusDot label="Online" /><span className="text-[11px] text-muted-foreground">Protegido</span></div></div> : <div className="mb-5 flex justify-center"><StatusDot label="" /></div>}
+          {!collapsed ? <div className="mb-5 px-3"><p className="thanos-eyebrow">{mode === "admin" ? "Tenant Admin / Control room" : "Command center"}</p><div className="mt-2 flex items-center gap-2"><StatusDot label="Online" /><span className="text-[11px] text-muted-foreground">Protegido</span></div></div> : <div className="mb-5 flex justify-center"><StatusDot label="" /></div>}
           {navigation()}
           <div className={cn("my-6 h-px bg-border/60", collapsed && "mx-2")} />
           {!collapsed ? <div className="px-3"><p className="thanos-eyebrow">Workspace ativo</p><div className="mt-3 flex items-center gap-3 rounded-2xl border border-border/70 bg-muted/30 p-3"><span className="flex size-8 items-center justify-center rounded-xl bg-primary/12 text-primary"><ShieldCheck className="size-4" /></span><div className="min-w-0"><p className="truncate text-sm font-medium">{workspaceName}</p><p className="mt-0.5 text-[11px] text-muted-foreground">Contexto protegido</p></div></div></div> : null}
@@ -103,7 +103,7 @@ export function ThanosExperienceLayout({
         <div className="border-t border-border/60 p-3">
           <div className={cn("flex items-center gap-3 rounded-2xl p-2", collapsed && "justify-center")}>
             <Avatar className="size-9 border border-border"><AvatarFallback className="bg-primary/12 text-xs text-primary">{userName?.charAt(0).toUpperCase() ?? "T"}</AvatarFallback></Avatar>
-            {!collapsed ? <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{userName ?? "Sessão protegida"}</p><p className="truncate text-[11px] text-muted-foreground">{mode === "superadmin" ? "Superadmin autorizado" : userEmail ?? "Acesso autenticado"}</p></div> : null}
+            {!collapsed ? <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{userName ?? "Sessão protegida"}</p><p className="truncate text-[11px] text-muted-foreground">{mode === "admin" ? "Tenant Admin autorizado" : userEmail ?? "Acesso autenticado"}</p></div> : null}
             {!collapsed && onLogout ? <button type="button" onClick={onLogout} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Sair"><X className="size-4" /></button> : null}
           </div>
         </div>
@@ -123,7 +123,7 @@ export function ThanosExperienceLayout({
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent side="left" className="w-[min(86vw,340px)] border-r border-border/70 bg-card p-0">
           <SheetHeader className="border-b border-border/60 px-5 py-5 text-left"><SheetTitle><ThanosMark /></SheetTitle></SheetHeader>
-          <div className="space-y-6 p-4"><div><p className="thanos-eyebrow px-3">{mode === "superadmin" ? "Control room" : "Command center"}</p><div className="mt-2 flex items-center gap-2 px-3"><StatusDot label="Online" /><span className="text-xs text-muted-foreground">Workspace protegido</span></div></div>{navigation(true)}<div className="rounded-2xl border border-border/70 bg-muted/25 p-4"><p className="thanos-eyebrow">Workspace ativo</p><p className="mt-2 font-medium">{workspaceName}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">O backend continua authoritative sobre tenant e contexto.</p></div></div>
+          <div className="space-y-6 p-4"><div><p className="thanos-eyebrow px-3">{mode === "admin" ? "Tenant Admin / Control room" : "Command center"}</p><div className="mt-2 flex items-center gap-2 px-3"><StatusDot label="Online" /><span className="text-xs text-muted-foreground">Workspace protegido</span></div></div>{navigation(true)}<div className="rounded-2xl border border-border/70 bg-muted/25 p-4"><p className="thanos-eyebrow">Workspace ativo</p><p className="mt-2 font-medium">{workspaceName}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">O backend continua authoritative sobre tenant e contexto.</p></div></div>
         </SheetContent>
       </Sheet>
     </div>

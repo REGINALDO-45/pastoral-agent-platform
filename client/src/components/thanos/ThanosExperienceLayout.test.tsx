@@ -33,8 +33,8 @@ describe("THÁNOS experience navigation", () => {
     expect(html).toContain("thanos-mobile-header");
   });
 
-  it("exposes SUPERADMIN sections as a presentation contract only", () => {
-    const items = getExperienceNavigation("superadmin");
+  it("exposes TENANT ADMIN sections as a presentation contract only", () => {
+    const items = getExperienceNavigation("admin");
     expect(items.map(item => item.id)).toEqual([
       "overview",
       "workspaces",
@@ -46,5 +46,23 @@ describe("THÁNOS experience navigation", () => {
       "system",
     ]);
     expect(items.every(item => item.label.length > 0 && item.icon)).toBe(true);
+  });
+
+  it("labels the administrative shell as tenant-scoped rather than platform-wide", () => {
+    const html = renderToStaticMarkup(
+      <ThanosExperienceLayout
+        mode="admin"
+        activeSection="overview"
+        onSectionChange={() => undefined}
+        workspaceName="Workspace Sintético"
+        userName="Admin de teste"
+      >
+        <div>Área administrativa</div>
+      </ThanosExperienceLayout>,
+    );
+    expect(html).toContain("Tenant Admin / Control room");
+    expect(html).toContain("Administração do tenant THÁNOS");
+    expect(html).toContain("Tenant Admin autorizado");
+    expect(html).not.toContain("Superadmin");
   });
 });

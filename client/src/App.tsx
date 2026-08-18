@@ -5,7 +5,7 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "@/pages/Home";
-import ThanosCommandCenter, { ThanosSuperadmin } from "@/pages/ThanosCommandCenter";
+import ThanosCommandCenter, { ThanosTenantAdmin } from "@/pages/ThanosCommandCenter";
 import PastoralChat from "./pages/PastoralChat";
 import Settings from "./pages/Settings";
 
@@ -18,7 +18,7 @@ function Router() {
     <Switch>
       <Route path="/" component={ThanosCommandCenterRoute} />
       <Route path="/assistente" component={ThanosCommandCenterRoute} />
-      <Route path="/superadmin" component={ThanosSuperadmin} />
+      <Route path="/admin" component={ThanosTenantAdmin} />
       <Route path="/pastoral" component={Home} />
       <Route path="/assistente-pastoral" component={PastoralChat} />
       <Route path="/configuracoes" component={Settings} />

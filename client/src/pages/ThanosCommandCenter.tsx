@@ -23,7 +23,7 @@ function ErrorNotice({ onRetry }: { onRetry?: () => void }) {
 }
 
 function CommandHeader({ title, workspaceName, mode, onWorkspaceInfo }: { title: string; workspaceName: string; mode: ExperienceMode; onWorkspaceInfo: () => void }) {
-  return <header className="flex flex-col gap-5 border-b border-border/60 pb-6 sm:flex-row sm:items-end sm:justify-between"><div><p className="thanos-eyebrow flex items-center gap-2"><span className="thanos-kicker-dot" aria-hidden="true" />THÁNOS / {mode === "superadmin" ? "CONTROL ROOM" : "COMMAND CENTER"}</p><h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl lg:text-5xl">{title}</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">Uma inteligência operacional clara, protegida e pronta para transformar contexto autorizado em próximos passos.</p></div><button type="button" onClick={onWorkspaceInfo} className="thanos-workspace-pill" aria-label={`Workspace ativo: ${workspaceName}. Ver informações.`}><span className="flex size-8 items-center justify-center rounded-xl bg-primary/12 text-primary"><ShieldCheck className="size-4" /></span><span className="text-left"><span className="block text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Workspace ativo</span><span className="mt-0.5 block text-sm font-semibold">{workspaceName}</span></span><ChevronRight className="ml-1 size-4 text-muted-foreground" /></button></header>;
+  return <header className="flex flex-col gap-5 border-b border-border/60 pb-6 sm:flex-row sm:items-end sm:justify-between"><div><p className="thanos-eyebrow flex items-center gap-2"><span className="thanos-kicker-dot" aria-hidden="true" />THÁNOS / {mode === "admin" ? "CONTROL ROOM" : "COMMAND CENTER"}</p><h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl lg:text-5xl">{title}</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">Uma inteligência operacional clara, protegida e pronta para transformar contexto autorizado em próximos passos.</p></div><button type="button" onClick={onWorkspaceInfo} className="thanos-workspace-pill" aria-label={`Workspace ativo: ${workspaceName}. Ver informações.`}><span className="flex size-8 items-center justify-center rounded-xl bg-primary/12 text-primary"><ShieldCheck className="size-4" /></span><span className="text-left"><span className="block text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Workspace ativo</span><span className="mt-0.5 block text-sm font-semibold">{workspaceName}</span></span><ChevronRight className="ml-1 size-4 text-muted-foreground" /></button></header>;
 }
 
 function VoiceStateChip({ state }: { state: VoiceState }) {
@@ -136,7 +136,7 @@ function AdminOverview({ workspaceName, accessData, overviewData, integrationDat
   const toolsCount = catalogData?.length ?? 0;
   const hermes = integrationData?.hermes?.hermes;
   const org = overviewData?.organization?.name ?? workspaceName;
-  return <div className="space-y-5" data-testid="thanos-superadmin-overview"><CommandHeader title="Control room THÁNOS." workspaceName={org} mode="superadmin" onWorkspaceInfo={() => toast.info("Contexto administrativo exibido de forma sanitizada.")} /><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><AdminMetric icon={Activity} label="Status THÁNOS" value="Online" detail="Governado" tone="positive" /><AdminMetric icon={LayoutGrid} label="Workspace ativo" value={org} detail="Contexto server-side" tone="primary" /><AdminMetric icon={Gem} label="Ferramentas aprovadas" value={toolsCount || "—"} detail="Catálogo fechado" tone="violet" /><AdminMetric icon={Radio} label="Hermes" value={hermes?.enabled ? "Opt-in" : "Desativado"} detail="Sem segredos visíveis" tone="amber" /></div><div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]"><Card className="thanos-card"><CardHeader><p className="thanos-eyebrow">Leitura rápida</p><CardTitle className="mt-1 text-xl">Operação sob controle.</CardTitle></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2"><AdminFeature icon={ShieldCheck} title="Acesso administrativo" value={accessData?.role ?? "Autorizado"} description="Permissões decididas pelo servidor." /><AdminFeature icon={Database} title="Evidence" value="Sanitizada" description="Proveniência permitida, sem payload bruto." /><AdminFeature icon={Network} title="Connectors" value="Allowlisted" description="Sem criação livre pela UI." /><AdminFeature icon={Workflow} title="WRITE público" value="Desativado" description="Confirmação visual sem ativação externa." /></CardContent></Card><ThanosEvidenceCard source={org} action="Overview administrativa" status="Concluído" /></div></div>;
+  return <div className="space-y-5" data-testid="thanos-admin-overview"><CommandHeader title="Control room THÁNOS." workspaceName={org} mode="admin" onWorkspaceInfo={() => toast.info("Contexto administrativo exibido de forma sanitizada.")} /><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><AdminMetric icon={Activity} label="Status THÁNOS" value="Online" detail="Governado" tone="positive" /><AdminMetric icon={LayoutGrid} label="Workspace ativo" value={org} detail="Contexto server-side" tone="primary" /><AdminMetric icon={Gem} label="Ferramentas aprovadas" value={toolsCount || "—"} detail="Catálogo fechado" tone="violet" /><AdminMetric icon={Radio} label="Hermes" value={hermes?.enabled ? "Opt-in" : "Desativado"} detail="Sem segredos visíveis" tone="amber" /></div><div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]"><Card className="thanos-card"><CardHeader><p className="thanos-eyebrow">Leitura rápida</p><CardTitle className="mt-1 text-xl">Operação sob controle.</CardTitle></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2"><AdminFeature icon={ShieldCheck} title="Acesso administrativo" value={accessData?.role ?? "Autorizado"} description="Permissões decididas pelo servidor." /><AdminFeature icon={Database} title="Evidence" value="Sanitizada" description="Proveniência permitida, sem payload bruto." /><AdminFeature icon={Network} title="Connectors" value="Allowlisted" description="Sem criação livre pela UI." /><AdminFeature icon={Workflow} title="WRITE público" value="Desativado" description="Confirmação visual sem ativação externa." /></CardContent></Card><ThanosEvidenceCard source={org} action="Overview administrativa" status="Concluído" /></div></div>;
 }
 
 function AdminMetric({ icon: Icon, label, value, detail, tone }: { icon: typeof Activity; label: string; value: string | number; detail: string; tone: "positive" | "primary" | "violet" | "amber" }) {
@@ -150,7 +150,7 @@ function AdminFeature({ icon: Icon, title, value, description }: { icon: typeof 
 function AdminCatalog({ catalogData, type }: { catalogData?: any[]; type: "jewels" | "powers" }) {
   const items = catalogData ?? [];
   const title = type === "jewels" ? "Joias registradas." : "Poderes disponíveis.";
-  return <div className="space-y-5"><CommandHeader title={title} workspaceName="Workspace autorizado" mode="superadmin" onWorkspaceInfo={() => undefined} /><Card className="thanos-card"><CardHeader><p className="thanos-eyebrow">Catálogo fechado</p><CardTitle className="mt-1 text-xl">Somente o que existe aparece aqui.</CardTitle></CardHeader><CardContent className="space-y-2">{items.length ? items.map((item, index) => type === "jewels" ? <ThanosJewel key={item.name ?? index} name={item.name ?? "Ferramenta registrada"} description={item.description ?? "Skill registrada no catálogo seguro."} status={item.enabled === false ? "disabled" : "available"} icon={Gem} /> : <ThanosPower key={item.name ?? index} name={item.name ?? "Poder registrado"} description={item.description ?? "Connector allowlisted."} />) : <ThanosLockedNotice title="Catálogo indisponível" description="Não há dados sanitizados para exibir neste momento." />}</CardContent></Card></div>;
+  return <div className="space-y-5"><CommandHeader title={title} workspaceName="Workspace autorizado" mode="admin" onWorkspaceInfo={() => undefined} /><Card className="thanos-card"><CardHeader><p className="thanos-eyebrow">Catálogo fechado</p><CardTitle className="mt-1 text-xl">Somente o que existe aparece aqui.</CardTitle></CardHeader><CardContent className="space-y-2">{items.length ? items.map((item, index) => type === "jewels" ? <ThanosJewel key={item.name ?? index} name={item.name ?? "Ferramenta registrada"} description={item.description ?? "Skill registrada no catálogo seguro."} status={item.enabled === false ? "disabled" : "available"} icon={Gem} /> : <ThanosPower key={item.name ?? index} name={item.name ?? "Poder registrado"} description={item.description ?? "Connector allowlisted."} />) : <ThanosLockedNotice title="Catálogo indisponível" description="Não há dados sanitizados para exibir neste momento." />}</CardContent></Card></div>;
 }
 
 function AdminStatusPanel({ section, integrationData, overviewData }: { section: "providers" | "channels" | "audit" | "system"; integrationData?: any; overviewData?: any }) {
@@ -158,7 +158,7 @@ function AdminStatusPanel({ section, integrationData, overviewData }: { section:
   const org = overviewData?.organization?.name ?? "Workspace autorizado";
   const titles: Record<typeof section, { title: string; eyebrow: string }> = { providers: { title: "Providers sanitizados.", eyebrow: "Providers" }, channels: { title: "Canais sob controle.", eyebrow: "Canais" }, audit: { title: "Auditoria recente.", eyebrow: "Auditoria" }, system: { title: "Sistema THÁNOS.", eyebrow: "Sistema" } };
   const current = titles[section];
-  return <div className="space-y-5"><CommandHeader title={current.title} workspaceName={org} mode="superadmin" onWorkspaceInfo={() => undefined} /><div className="grid gap-5 lg:grid-cols-2"><Card className="thanos-card"><CardHeader><p className="thanos-eyebrow">{current.eyebrow}</p><CardTitle className="mt-1 text-xl">Visibilidade com limites.</CardTitle></CardHeader><CardContent className="space-y-3"><SanitizedRow icon={Radio} label="Hermes" value={section === "providers" ? (hermes?.enabled ? "Opt-in" : "Desativado") : "Desativado por padrão"} /><SanitizedRow icon={Network} label="Canais externos" value="Não ativados" /><SanitizedRow icon={ShieldCheck} label="Segredos e URLs" value="Nunca exibidos" /><SanitizedRow icon={FileCheck2} label="Evidence" value={section === "audit" ? "Sanitizada" : "Disponível"} /></CardContent></Card><ThanosEvidenceCard source={org} action={current.eyebrow} status="Concluído" /></div></div>;
+  return <div className="space-y-5"><CommandHeader title={current.title} workspaceName={org} mode="admin" onWorkspaceInfo={() => undefined} /><div className="grid gap-5 lg:grid-cols-2"><Card className="thanos-card"><CardHeader><p className="thanos-eyebrow">{current.eyebrow}</p><CardTitle className="mt-1 text-xl">Visibilidade com limites.</CardTitle></CardHeader><CardContent className="space-y-3"><SanitizedRow icon={Radio} label="Hermes" value={section === "providers" ? (hermes?.enabled ? "Opt-in" : "Desativado") : "Desativado por padrão"} /><SanitizedRow icon={Network} label="Canais externos" value="Não ativados" /><SanitizedRow icon={ShieldCheck} label="Segredos e URLs" value="Nunca exibidos" /><SanitizedRow icon={FileCheck2} label="Evidence" value={section === "audit" ? "Sanitizada" : "Disponível"} /></CardContent></Card><ThanosEvidenceCard source={org} action={current.eyebrow} status="Concluído" /></div></div>;
 }
 
 function SanitizedRow({ icon: Icon, label, value }: { icon: typeof Radio; label: string; value: string }) {
@@ -166,24 +166,24 @@ function SanitizedRow({ icon: Icon, label, value }: { icon: typeof Radio; label:
 }
 
 function AdminDenied() {
-  return <div className="space-y-5" data-testid="thanos-superadmin-denied"><CommandHeader title="Área de controle protegida." workspaceName="Sessão atual" mode="user" onWorkspaceInfo={() => undefined} /><Card className="thanos-card"><CardContent className="flex min-h-[360px] flex-col items-center justify-center px-6 py-12 text-center"><div className="thanos-icon-box thanos-icon-box-warning size-14"><LockKeyhole className="size-6" /></div><h2 className="mt-5 text-2xl font-semibold">Acesso administrativo necessário.</h2><p className="mt-2 max-w-lg text-sm leading-6 text-muted-foreground">Esta experiência maior só aparece quando o backend confirma a permissão administrativa da organização. A UI não cria nem eleva autoridade.</p><ThanosLockedNotice title="Fronteira server-side" description="Role, capability, platformRole e workspace não são derivados de localStorage, query params ou estado visual." /></CardContent></Card></div>;
+  return <div className="space-y-5" data-testid="thanos-admin-denied"><CommandHeader title="Área de controle protegida." workspaceName="Sessão atual" mode="user" onWorkspaceInfo={() => undefined} /><Card className="thanos-card"><CardContent className="flex min-h-[360px] flex-col items-center justify-center px-6 py-12 text-center"><div className="thanos-icon-box thanos-icon-box-warning size-14"><LockKeyhole className="size-6" /></div><h2 className="mt-5 text-2xl font-semibold">Acesso de Tenant Admin necessário.</h2><p className="mt-2 max-w-lg text-sm leading-6 text-muted-foreground">Esta experiência de Tenant Admin só aparece quando o backend confirma a permissão administrativa da organização. A UI não cria nem eleva autoridade.</p><ThanosLockedNotice title="Fronteira server-side" description="Role, capability, platformRole e workspace não são derivados de localStorage, query params ou estado visual." /></CardContent></Card></div>;
 }
 
 export default function ThanosCommandCenter({ requestedMode = "user" }: { requestedMode?: ExperienceMode }) {
   const { user, isAuthenticated, logout } = useAuth();
-  const [activeSection, setActiveSection] = useState<ExperienceSection>(requestedMode === "superadmin" ? "overview" : "chat");
-  const access = trpc.pastoral.settingsAccess.useQuery(undefined, { enabled: requestedMode === "superadmin" && Boolean(user && isAuthenticated) });
-  const isSuperadmin = requestedMode === "superadmin" && access.data?.allowed === true;
-  const mode: ExperienceMode = isSuperadmin ? "superadmin" : "user";
+  const [activeSection, setActiveSection] = useState<ExperienceSection>(requestedMode === "admin" ? "overview" : "chat");
+  const access = trpc.pastoral.settingsAccess.useQuery(undefined, { enabled: requestedMode === "admin" && Boolean(user && isAuthenticated) });
+  const isTenantAdmin = requestedMode === "admin" && access.data?.allowed === true;
+  const mode: ExperienceMode = isTenantAdmin ? "admin" : "user";
   const dashboard = trpc.pastoral.dashboard.useQuery(undefined, { enabled: Boolean(user && isAuthenticated) });
-  const adminOverview = trpc.pastoral.settingsOverview.useQuery(undefined, { enabled: isSuperadmin });
-  const adminIntegrations = trpc.pastoral.integrationStatus.useQuery(undefined, { enabled: isSuperadmin });
-  const adminCatalog = trpc.pastoral.toolCatalog.useQuery(undefined, { enabled: isSuperadmin });
+  const adminOverview = trpc.pastoral.settingsOverview.useQuery(undefined, { enabled: isTenantAdmin });
+  const adminIntegrations = trpc.pastoral.integrationStatus.useQuery(undefined, { enabled: isTenantAdmin });
+  const adminCatalog = trpc.pastoral.toolCatalog.useQuery(undefined, { enabled: isTenantAdmin });
   const workspaceName = dashboard.data?.tenant?.organizationName ?? adminOverview.data?.organization?.name ?? "Workspace Pastoral";
   const onWorkspaceInfo = () => setActiveSection("workspace");
 
   useEffect(() => {
-    if (requestedMode === "superadmin" && access.data && !access.data.allowed) setActiveSection("overview");
+    if (requestedMode === "admin" && access.data && !access.data.allowed) setActiveSection("overview");
   }, [requestedMode, access.data]);
 
   const renderUserSection = () => {
@@ -193,7 +193,7 @@ export default function ThanosCommandCenter({ requestedMode = "user" }: { reques
     return <UserChat workspaceName={workspaceName} onWorkspaceInfo={onWorkspaceInfo} />;
   };
   const renderAdminSection = () => {
-    if (!isSuperadmin) return <AdminDenied />;
+    if (!isTenantAdmin) return <AdminDenied />;
     if (activeSection === "jewels") return <AdminCatalog catalogData={adminCatalog.data} type="jewels" />;
     if (activeSection === "powers") return <AdminCatalog catalogData={adminCatalog.data} type="powers" />;
     if (activeSection === "providers" || activeSection === "channels" || activeSection === "audit" || activeSection === "system") return <AdminStatusPanel section={activeSection} integrationData={adminIntegrations.data} overviewData={adminOverview.data} />;
@@ -201,9 +201,9 @@ export default function ThanosCommandCenter({ requestedMode = "user" }: { reques
     return <AdminOverview workspaceName={workspaceName} accessData={access.data ?? undefined} overviewData={adminOverview.data} integrationData={adminIntegrations.data} catalogData={adminCatalog.data} />;
   };
 
-  return <ThanosExperienceLayout mode={mode} activeSection={activeSection} onSectionChange={setActiveSection} workspaceName={workspaceName} userName={user?.name} userEmail={user?.email} onLogout={() => void logout()}>{requestedMode === "superadmin" ? (access.isLoading ? <div className="space-y-5"><div className="h-32 animate-pulse rounded-3xl bg-muted/40" /><div className="grid gap-4 sm:grid-cols-2"><Skeleton className="h-44 rounded-2xl" /><Skeleton className="h-44 rounded-2xl" /></div></div> : renderAdminSection()) : renderUserSection()}</ThanosExperienceLayout>;
+  return <ThanosExperienceLayout mode={mode} activeSection={activeSection} onSectionChange={setActiveSection} workspaceName={workspaceName} userName={user?.name} userEmail={user?.email} onLogout={() => void logout()}>{requestedMode === "admin" ? (access.isLoading ? <div className="space-y-5"><div className="h-32 animate-pulse rounded-3xl bg-muted/40" /><div className="grid gap-4 sm:grid-cols-2"><Skeleton className="h-44 rounded-2xl" /><Skeleton className="h-44 rounded-2xl" /></div></div> : renderAdminSection()) : renderUserSection()}</ThanosExperienceLayout>;
 }
 
-export function ThanosSuperadmin() {
-  return <ThanosCommandCenter requestedMode="superadmin" />;
+export function ThanosTenantAdmin() {
+  return <ThanosCommandCenter requestedMode="admin" />;
 }
