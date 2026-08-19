@@ -27,5 +27,4 @@ export const ENV = {
   thanosPilotUserIds: process.env.THANOS_PILOT_USER_IDS ?? "",
   thanosPilotVersion:
     process.env.THANOS_PILOT_VERSION ?? "thanos-read-pilot-v1",
-  thanosJmgReadEnabled: process.env.THANOS_JMG_READ_ENABLED ?? "false",
 };
