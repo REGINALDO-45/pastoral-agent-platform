@@ -1,10 +1,6 @@
 import { z } from "zod";
-import type { ThanosContext } from "./contracts";
-import { normalizeThanosEvidence, type ThanosEvidence } from "./evidence";
-
 export const JMG_WORKSPACE_KEY = "jmg" as const;
 export const JMG_DOMAIN = "jmg" as const;
-export const JMG_TENANT_SCOPE = "workspace:jmg" as const;
 export const JMG_READ_TOOL = "jmg_resumo_propostas" as const;
 export const JMG_READ_CATEGORY = "READ" as const;
 export const JMG_READ_FEATURE_FLAG_ENV = "THANOS_JMG_READ_ENABLED" as const;
@@ -48,8 +44,15 @@ export type JmgReadTrustedContext = Readonly<{
   requestId: string;
 }>;
 
+export type JmgReadServerContext = Readonly<{
+  workspaceKey: typeof JMG_WORKSPACE_KEY;
+  domain: typeof JMG_DOMAIN;
+  requestId: string;
+  capabilities: readonly ["agent:read"];
+}>;
+
 export type JmgReadAdapterInput = Readonly<{
-  context: ThanosContext;
+  context: JmgReadServerContext;
   requestId: string;
   input: JmgReadInput;
 }>;
@@ -130,7 +133,7 @@ export type JmgReadEvidence = Readonly<{
   requestId: string;
   timestamp: string;
   summary: string;
-  evidence: ThanosEvidence;
+  metrics: JmgReadSummary;
 }>;
 
 export type JmgReadExecutionResult = Readonly<{
@@ -144,7 +147,7 @@ export type JmgReadExecutionResult = Readonly<{
 }>;
 
 export type JmgReadExecutionInput = Readonly<{
-  context: ThanosContext;
+  context: JmgReadServerContext;
   trustedContext?: JmgReadTrustedContext;
   requestId: string;
   requestedWorkspace: string;
@@ -250,15 +253,11 @@ function assertJmgReadPolicy(input: JmgReadExecutionInput): void {
   if (
     input.requestedWorkspace !== JMG_WORKSPACE_KEY ||
     input.context.workspaceKey !== JMG_WORKSPACE_KEY ||
-    input.context.domain !== JMG_DOMAIN ||
-    input.context.tenantId !== JMG_TENANT_SCOPE ||
-    input.context.channel !== "chat"
+    input.context.domain !== JMG_DOMAIN
   ) {
     throw policyError("workspace-denied");
   }
   if (
-    input.context.platformRole !== "none" ||
-    input.context.platformCapabilities.length !== 0 ||
     input.trustedContext?.source !== "server" ||
     input.trustedContext.requestId !== input.requestId ||
     input.context.requestId !== input.requestId
@@ -267,7 +266,7 @@ function assertJmgReadPolicy(input: JmgReadExecutionInput): void {
   }
   if (
     input.context.capabilities.length !== 1 ||
-    !input.context.capabilities.includes("agent:read")
+    input.context.capabilities[0] !== "agent:read"
   ) {
     throw policyError("capability-denied");
   }
@@ -339,14 +338,6 @@ export async function executeJmgRead(
       timestamp,
       actor: auditActor,
     });
-    const evidence = normalizeThanosEvidence(
-      {
-        summary: "JMG resumo agregado de propostas.",
-        data: summary,
-      },
-      input.context,
-      { source: "connector", tool: JMG_READ_TOOL }
-    );
     const sanitizedEvidence = Object.freeze({
       workspace: JMG_WORKSPACE_KEY,
       tool: JMG_READ_TOOL,
@@ -354,7 +345,7 @@ export async function executeJmgRead(
       requestId: input.requestId,
       timestamp,
       summary: "sanitized-jmg-proposal-summary",
-      evidence,
+      metrics: summary,
     });
     await recordAudit(input.audit, audit);
     return Object.freeze({

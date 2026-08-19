@@ -11,26 +11,18 @@ import {
   syntheticWorkspaceDefinition,
   type SyntheticWorkspaceSource,
 } from "../workspaces/synthetic/workspaceDefinition";
-import {
-  jmgSkillDefinition,
-  jmgWorkspaceDefinition,
-  type JmgWorkspaceSource,
-} from "../workspaces/jmg/workspaceDefinition";
 
 export type ThanosWorkspaceSource =
   | PastoralWorkspaceSource
-  | SyntheticWorkspaceSource
-  | JmgWorkspaceSource;
+  | SyntheticWorkspaceSource;
 
 export const thanosWorkspaceRegistry =
   new WorkspaceRegistry<ThanosWorkspaceSource>([
     pastoralWorkspaceDefinition,
     syntheticWorkspaceDefinition,
-    jmgWorkspaceDefinition,
   ]);
 export const thanosSkillRegistry = new SkillRegistry([
   pastoralSkillDefinition,
   syntheticSkillDefinition,
   syntheticWriteSkillDefinition,
-  jmgSkillDefinition,
 ]);

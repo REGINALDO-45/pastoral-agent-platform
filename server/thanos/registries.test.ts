@@ -71,7 +71,7 @@ describe("registros fechados do THÁNOS", () => {
     expect(skill.allowedChannels).toEqual(["chat"]);
     expect(skill.requiredCapabilities).toEqual(["agent:read"]);
     expect(skill.readOnly).toBe(true);
-    expect(thanosWorkspaceRegistry.list()).toHaveLength(3);
+    expect(thanosWorkspaceRegistry.list()).toHaveLength(2);
   });
 
   it("registra um segundo workspace sintético como skill READ-only sem importar o domínio Pastoral", () => {
