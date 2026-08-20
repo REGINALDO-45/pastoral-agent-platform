@@ -192,12 +192,18 @@ describe("Consultas pastorais autenticadas", () => {
   });
 
   it("expõe o catálogo de ferramentas pelo tenant autenticado sem detalhes internos", async () => {
-    const caller = appRouter.createCaller(authenticatedContext());
-    const catalog = await caller.pastoral.toolCatalog();
+    const db = await getDb();
+    if (!db) throw new Error("Banco de teste indisponível.");
 
-    expect(catalog).toContainEqual(expect.objectContaining({ name: "consultar_celulas", category: "READ" }));
-    expect(catalog).toContainEqual(expect.objectContaining({ name: "registrar_acompanhamento_visitante", requiresConfirmation: true }));
-    expect(JSON.stringify(catalog)).not.toMatch(/execute|repository|secret|token|key|url|organizationId/i);
+    await withRestoredMemberships(db, [1], async () => {
+      await db.update(organizationMemberships).set({ role: "admin" }).where(eq(organizationMemberships.userId, 1));
+      const caller = appRouter.createCaller(authenticatedContext());
+      const catalog = await caller.pastoral.toolCatalog();
+
+      expect(catalog).toContainEqual(expect.objectContaining({ name: "consultar_celulas", category: "READ" }));
+      expect(catalog).toContainEqual(expect.objectContaining({ name: "registrar_acompanhamento_visitante", requiresConfirmation: true }));
+      expect(JSON.stringify(catalog)).not.toMatch(/execute|repository|secret|token|key|url|organizationId/i);
+    });
   });
 
   it("protege o status de integrações e audita o teste Hermes sem revelar segredos", async () => {
@@ -252,6 +258,7 @@ describe("Consultas pastorais autenticadas", () => {
       expect(catalogB).toContainEqual(expect.objectContaining({ name: "consultar_celulas", enabled: true }));
       expect(setting).toMatchObject({ organizationId: 1, toolName: "consultar_celulas", enabled: false, updatedByUserId: 1 });
       expect(audits.some(entry => entry.organizationId === 1 && entry.userId === 1 && entry.tool === "consultar_celulas")).toBe(true);
+      await db.update(organizationMemberships).set({ role: "pastor" }).where(eq(organizationMemberships.userId, demoPastorB.id));
       await expect(callerB.pastoral.updateToolStatus({ name: "consultar_celulas", enabled: false })).rejects.toMatchObject({ code: "FORBIDDEN" });
     });
   });
