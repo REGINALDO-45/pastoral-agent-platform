@@ -26,6 +26,27 @@ function authenticatedContext(): TrpcContext {
   };
 }
 
+type TestDb = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+
+type MembershipSnapshot = typeof organizationMemberships.$inferSelect;
+
+async function withRestoredMemberships<T>(db: TestDb, userIds: number[], callback: () => Promise<T>) {
+  const snapshots: MembershipSnapshot[] = [];
+  for (const userId of [...new Set(userIds)]) {
+    snapshots.push(...await db.select().from(organizationMemberships).where(eq(organizationMemberships.userId, userId)));
+  }
+
+  try {
+    return await callback();
+  } finally {
+    for (const snapshot of snapshots) {
+      await db.update(organizationMemberships)
+        .set({ role: snapshot.role })
+        .where(eq(organizationMemberships.id, snapshot.id));
+    }
+  }
+}
+
 function createPublicPilotCaller(
   config: Record<string, string>,
   options: Readonly<{ failThanos?: boolean }> = {},
@@ -125,45 +146,49 @@ describe("Consultas pastorais autenticadas", () => {
   it("persiste configuração do Gateway pelo admin, a resolve por tenant e nunca devolve segredos", async () => {
     const db = await getDb();
     if (!db) throw new Error("Banco de teste indisponível.");
-    await db.update(organizationMemberships).set({ role: "admin" }).where(eq(organizationMemberships.userId, 1));
-    const adminCaller = appRouter.createCaller(authenticatedContext());
     const demoPastorB = (await db.select().from(users).where(eq(users.openId, "demo-pastor-b")).limit(1))[0];
     if (!demoPastorB) throw new Error("Usuário do tenant B não foi semeado.");
-    const callerB = appRouter.createCaller({
-      ...authenticatedContext(),
-      user: { ...authenticatedContext().user!, id: demoPastorB.id, openId: demoPastorB.openId, name: demoPastorB.name, role: "user" },
+
+    await withRestoredMemberships(db, [1, demoPastorB.id], async () => {
+      await db.update(organizationMemberships).set({ role: "admin" }).where(eq(organizationMemberships.userId, 1));
+      const adminCaller = appRouter.createCaller(authenticatedContext());
+      const callerB = appRouter.createCaller({
+        ...authenticatedContext(),
+        user: { ...authenticatedContext().user!, id: demoPastorB.id, openId: demoPastorB.openId, name: demoPastorB.name, role: "user" },
+      });
+
+      const updatedA = await adminCaller.pastoral.updateAgentSettings({
+        enabled: true,
+        provider: "legacy",
+        model: "tenant-a-safe-model",
+        fallbackPolicy: "deterministic",
+      });
+      await db.insert(organizationAgentSettings).values({
+        organizationId: 2,
+        enabled: false,
+        provider: "hermes",
+        model: "tenant-b-isolated-model",
+        fallbackPolicy: "deterministic",
+        updatedByUserId: demoPastorB.id,
+      }).onDuplicateKeyUpdate({
+        set: { enabled: false, provider: "hermes", model: "tenant-b-isolated-model", fallbackPolicy: "deterministic", updatedByUserId: demoPastorB.id, updatedAt: new Date() },
+      });
+
+      await db.update(organizationMemberships).set({ role: "admin" }).where(eq(organizationMemberships.userId, demoPastorB.id));
+
+      const storedB = (await db.select().from(organizationAgentSettings).where(eq(organizationAgentSettings.organizationId, 2)).limit(1))[0];
+      const resolvedA = await adminCaller.pastoral.agentSettings();
+      const resolvedB = await callerB.pastoral.agentSettings();
+      const audits = await db.select().from(auditLogs).where(eq(auditLogs.action, "agent_gateway.settings.update"));
+
+      expect(updatedA).toMatchObject({ status: "online", provider: "legacy", model: "tenant-a-safe-model", source: "organization" });
+      expect(storedB).toMatchObject({ enabled: false, provider: "hermes", model: "tenant-b-isolated-model" });
+      expect(resolvedA).toMatchObject({ provider: "legacy", model: "tenant-a-safe-model", source: "organization" });
+      expect(resolvedB).toMatchObject({ status: "disabled", provider: "legacy", model: "tenant-b-isolated-model", source: "organization", hermes: { enabled: false } });
+      expect(JSON.stringify(resolvedA)).not.toMatch(/key|token|url/i);
+      expect(audits.some(entry => entry.organizationId === 1 && entry.userId === 1)).toBe(true);
+      await expect(callerB.pastoral.updateAgentSettings({ enabled: true, provider: "legacy", model: "denied-model", fallbackPolicy: "deterministic" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     });
-
-    const updatedA = await adminCaller.pastoral.updateAgentSettings({
-      enabled: true,
-      provider: "legacy",
-      model: "tenant-a-safe-model",
-      fallbackPolicy: "deterministic",
-    });
-    await db.insert(organizationAgentSettings).values({
-      organizationId: 2,
-      enabled: false,
-      provider: "hermes",
-      model: "tenant-b-isolated-model",
-      fallbackPolicy: "deterministic",
-      updatedByUserId: demoPastorB.id,
-    }).onDuplicateKeyUpdate({
-      set: { enabled: false, provider: "hermes", model: "tenant-b-isolated-model", fallbackPolicy: "deterministic", updatedByUserId: demoPastorB.id, updatedAt: new Date() },
-    });
-
-    await db.update(organizationMemberships).set({ role: "admin" }).where(eq(organizationMemberships.userId, demoPastorB.id));
-
-    const resolvedA = await adminCaller.pastoral.agentSettings();
-    const resolvedB = await callerB.pastoral.agentSettings();
-    const audits = await db.select().from(auditLogs).where(eq(auditLogs.action, "agent_gateway.settings.update"));
-
-    expect(updatedA).toMatchObject({ status: "online", provider: "legacy", model: "tenant-a-safe-model", source: "organization" });
-    expect(resolvedA).toMatchObject({ provider: "legacy", model: "tenant-a-safe-model", source: "organization" });
-    expect(resolvedB).toMatchObject({ status: "disabled", provider: "hermes", model: "tenant-b-isolated-model", source: "organization" });
-    expect(JSON.stringify(resolvedA)).not.toMatch(/key|token|url/i);
-    expect(audits.some(entry => entry.organizationId === 1 && entry.userId === 1)).toBe(true);
-    await db.update(organizationMemberships).set({ role: "pastor" }).where(eq(organizationMemberships.userId, demoPastorB.id));
-    await expect(callerB.pastoral.updateAgentSettings({ enabled: true, provider: "legacy", model: "denied-model", fallbackPolicy: "deterministic" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("expõe o catálogo de ferramentas pelo tenant autenticado sem detalhes internos", async () => {
@@ -178,79 +203,89 @@ describe("Consultas pastorais autenticadas", () => {
   it("protege o status de integrações e audita o teste Hermes sem revelar segredos", async () => {
     const db = await getDb();
     if (!db) throw new Error("Banco de teste indisponível.");
-    await db.update(organizationMemberships).set({ role: "admin" }).where(eq(organizationMemberships.userId, 1));
-    const adminCaller = appRouter.createCaller(authenticatedContext());
     const demoPastorB = (await db.select().from(users).where(eq(users.openId, "demo-pastor-b")).limit(1))[0];
     if (!demoPastorB) throw new Error("Usuário do tenant B não foi semeado.");
-    const callerB = appRouter.createCaller({
-      ...authenticatedContext(),
-      user: { ...authenticatedContext().user!, id: demoPastorB.id, openId: demoPastorB.openId, name: demoPastorB.name, role: "user" },
+
+    await withRestoredMemberships(db, [1, demoPastorB.id], async () => {
+      await db.update(organizationMemberships).set({ role: "admin" }).where(eq(organizationMemberships.userId, 1));
+      await db.update(organizationMemberships).set({ role: "pastor" }).where(eq(organizationMemberships.userId, demoPastorB.id));
+      const adminCaller = appRouter.createCaller(authenticatedContext());
+      const callerB = appRouter.createCaller({
+        ...authenticatedContext(),
+        user: { ...authenticatedContext().user!, id: demoPastorB.id, openId: demoPastorB.openId, name: demoPastorB.name, role: "user" },
+      });
+
+      const status = await adminCaller.pastoral.integrationStatus();
+      const probe = await adminCaller.pastoral.testHermes();
+
+      expect(status).toMatchObject({ n8n: { enabled: false, status: "disabled", allowedWorkflows: [] }, hermes: { hermes: { connection: expect.any(String) } } });
+      expect(probe).toMatchObject({ connection: expect.any(String), attempts: expect.any(Number) });
+      expect(JSON.stringify({ status, probe })).not.toMatch(/api.?key|base.?url|token|secret/i);
+      await expect(callerB.pastoral.integrationStatus()).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(callerB.pastoral.testHermes()).rejects.toMatchObject({ code: "FORBIDDEN" });
     });
-
-    const status = await adminCaller.pastoral.integrationStatus();
-    const probe = await adminCaller.pastoral.testHermes();
-
-    expect(status).toMatchObject({ n8n: { enabled: false, status: "disabled", allowedWorkflows: [] }, hermes: { hermes: { connection: expect.any(String) } } });
-    expect(probe).toMatchObject({ connection: expect.any(String), attempts: expect.any(Number) });
-    expect(JSON.stringify({ status, probe })).not.toMatch(/api.?key|base.?url|token|secret/i);
-    await expect(callerB.pastoral.integrationStatus()).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(callerB.pastoral.testHermes()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("persiste a habilitação somente para a organização do administrador e bloqueia mudanças por papéis não administrativos", async () => {
     const db = await getDb();
     if (!db) throw new Error("Banco de teste indisponível.");
-    await db.update(organizationMemberships).set({ role: "admin" }).where(eq(organizationMemberships.userId, 1));
-    const adminCaller = appRouter.createCaller(authenticatedContext());
     const demoPastorB = (await db.select().from(users).where(eq(users.openId, "demo-pastor-b")).limit(1))[0];
     if (!demoPastorB) throw new Error("Usuário do tenant B não foi semeado.");
-    const callerB = appRouter.createCaller({
-      ...authenticatedContext(),
-      user: { ...authenticatedContext().user!, id: demoPastorB.id, openId: demoPastorB.openId, name: demoPastorB.name, role: "user" },
+
+    await withRestoredMemberships(db, [1, demoPastorB.id], async () => {
+      await db.update(organizationMemberships).set({ role: "admin" }).where(eq(organizationMemberships.userId, 1));
+      await db.update(organizationMemberships).set({ role: "pastor" }).where(eq(organizationMemberships.userId, demoPastorB.id));
+      const adminCaller = appRouter.createCaller(authenticatedContext());
+      const callerB = appRouter.createCaller({
+        ...authenticatedContext(),
+        user: { ...authenticatedContext().user!, id: demoPastorB.id, openId: demoPastorB.openId, name: demoPastorB.name, role: "user" },
+      });
+
+      const updatedA = await adminCaller.pastoral.updateToolStatus({ name: "consultar_celulas", enabled: false });
+      await expect(callerB.pastoral.toolCatalog()).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await db.update(organizationMemberships).set({ role: "admin" }).where(eq(organizationMemberships.userId, demoPastorB.id));
+      const catalogB = await callerB.pastoral.toolCatalog();
+      const setting = (await db.select().from(organizationToolSettings).where(eq(organizationToolSettings.organizationId, 1)).limit(1))[0];
+      const audits = await db.select().from(auditLogs).where(eq(auditLogs.action, "agent_tool.settings.update"));
+
+      expect(updatedA).toContainEqual(expect.objectContaining({ name: "consultar_celulas", enabled: false }));
+      expect(catalogB).toContainEqual(expect.objectContaining({ name: "consultar_celulas", enabled: true }));
+      expect(setting).toMatchObject({ organizationId: 1, toolName: "consultar_celulas", enabled: false, updatedByUserId: 1 });
+      expect(audits.some(entry => entry.organizationId === 1 && entry.userId === 1 && entry.tool === "consultar_celulas")).toBe(true);
+      await expect(callerB.pastoral.updateToolStatus({ name: "consultar_celulas", enabled: false })).rejects.toMatchObject({ code: "FORBIDDEN" });
     });
-
-    const updatedA = await adminCaller.pastoral.updateToolStatus({ name: "consultar_celulas", enabled: false });
-    await expect(callerB.pastoral.toolCatalog()).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await db.update(organizationMemberships).set({ role: "admin" }).where(eq(organizationMemberships.userId, demoPastorB.id));
-    const catalogB = await callerB.pastoral.toolCatalog();
-    const setting = (await db.select().from(organizationToolSettings).where(eq(organizationToolSettings.organizationId, 1)).limit(1))[0];
-    const audits = await db.select().from(auditLogs).where(eq(auditLogs.action, "agent_tool.settings.update"));
-
-    expect(updatedA).toContainEqual(expect.objectContaining({ name: "consultar_celulas", enabled: false }));
-    expect(catalogB).toContainEqual(expect.objectContaining({ name: "consultar_celulas", enabled: true }));
-    expect(setting).toMatchObject({ organizationId: 1, toolName: "consultar_celulas", enabled: false, updatedByUserId: 1 });
-    expect(audits.some(entry => entry.organizationId === 1 && entry.userId === 1 && entry.tool === "consultar_celulas")).toBe(true);
-    await db.update(organizationMemberships).set({ role: "pastor" }).where(eq(organizationMemberships.userId, demoPastorB.id));
-    await expect(callerB.pastoral.updateToolStatus({ name: "consultar_celulas", enabled: false })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("expõe a visão administrativa sanitizada apenas ao admin da própria organização", async () => {
     const db = await getDb();
     if (!db) throw new Error("Banco de teste indisponível.");
-    await db.update(organizationMemberships).set({ role: "admin" }).where(eq(organizationMemberships.userId, 1));
-    const adminCaller = appRouter.createCaller(authenticatedContext());
     const demoPastorB = (await db.select().from(users).where(eq(users.openId, "demo-pastor-b")).limit(1))[0];
     if (!demoPastorB) throw new Error("Usuário do tenant B não foi semeado.");
-    await db.update(organizationMemberships).set({ role: "pastor" }).where(eq(organizationMemberships.userId, demoPastorB.id));
-    const callerB = appRouter.createCaller({
-      ...authenticatedContext(),
-      user: { ...authenticatedContext().user!, id: demoPastorB.id, openId: demoPastorB.openId, name: demoPastorB.name, role: "user" },
+
+    await withRestoredMemberships(db, [1, demoPastorB.id], async () => {
+      await db.update(organizationMemberships).set({ role: "admin" }).where(eq(organizationMemberships.userId, 1));
+      await db.update(organizationMemberships).set({ role: "pastor" }).where(eq(organizationMemberships.userId, demoPastorB.id));
+      const adminCaller = appRouter.createCaller(authenticatedContext());
+      const callerB = appRouter.createCaller({
+        ...authenticatedContext(),
+        user: { ...authenticatedContext().user!, id: demoPastorB.id, openId: demoPastorB.openId, name: demoPastorB.name, role: "user" },
+      });
+
+      const access = await adminCaller.pastoral.settingsAccess();
+      const overview = await adminCaller.pastoral.settingsOverview();
+      const restrictedAccess = await callerB.pastoral.settingsAccess();
+
+      expect(access).toEqual({ allowed: true, role: "admin" });
+      expect(overview.organization).toMatchObject({ name: "Igreja Demonstração A", role: "admin" });
+      expect(overview.users.length).toBeGreaterThan(0);
+      expect(overview.voice).toMatchObject({ provider: "Transcrição integrada" });
+      expect(overview.auditEvents.every(event => /^audit-\d+$/.test(event.eventKey))).toBe(true);
+      expect(new Set(overview.auditEvents.map(event => event.eventKey)).size).toBe(overview.auditEvents.length);
+      expect(JSON.stringify(overview)).not.toMatch(/api.?key|base.?url|token|secret|metadata/i);
+      expect(restrictedAccess).toEqual({ allowed: false, role: "pastor" });
+      await expect(callerB.pastoral.settingsOverview()).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(callerB.pastoral.agentSettings()).rejects.toMatchObject({ code: "FORBIDDEN" });
     });
-
-    const access = await adminCaller.pastoral.settingsAccess();
-    const overview = await adminCaller.pastoral.settingsOverview();
-    const restrictedAccess = await callerB.pastoral.settingsAccess();
-
-    expect(access).toEqual({ allowed: true, role: "admin" });
-    expect(overview.organization).toMatchObject({ name: "Igreja Demonstração A", role: "admin" });
-    expect(overview.users.length).toBeGreaterThan(0);
-    expect(overview.voice).toMatchObject({ provider: "Transcrição integrada" });
-    expect(overview.auditEvents.every(event => /^audit-\d+$/.test(event.eventKey))).toBe(true);
-    expect(new Set(overview.auditEvents.map(event => event.eventKey)).size).toBe(overview.auditEvents.length);
-    expect(JSON.stringify(overview)).not.toMatch(/api.?key|base.?url|token|secret|metadata/i);
-    expect(restrictedAccess).toEqual({ allowed: false, role: "pastor" });
-    await expect(callerB.pastoral.settingsOverview()).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(callerB.pastoral.agentSettings()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("persiste requestId, provedor, resultado e confirmação na auditoria sem cruzar organizações", async () => {
