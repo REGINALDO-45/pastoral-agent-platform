@@ -1,13 +1,21 @@
 import { randomUUID } from "node:crypto";
 import { AgentCore } from "./agentCore";
 import { getTenantGatewayConfig, type TenantGatewayConfig } from "./tenantGatewayConfig";
-import { HermesClient, HermesUnavailableError, type HermesAttempt } from "./hermesClient";
+import { HermesClient, HermesUnavailableError, type HermesAttempt, type HermesFailureCode } from "./hermesClient";
 import { ModelRouter, type ModelGenerationInput, type ModelGenerationResult } from "./modelRouter";
 import { toSanitizedTenantGatewayStatus } from "./tenantGatewayConfig";
 import { enforceHermesEligibility } from "./gatewayConfig";
 import type { AgentResponse, PastoralRepository, TenantContext } from "./types";
 
 const GATEWAY_NAME = "agent-gateway-v1";
+
+type HermesFallbackReason = "hermes_unavailable" | "hermes_circuit_open" | "hermes_invalid_request";
+
+function toHermesFallbackReason(failure: HermesFailureCode): HermesFallbackReason {
+  if (failure === "circuit_open") return "hermes_circuit_open";
+  if (failure === "invalid_request") return "hermes_invalid_request";
+  return "hermes_unavailable";
+}
 
 type RespondInput = {
   context: TenantContext;
@@ -57,7 +65,7 @@ export class AgentGateway {
             version: "v1",
             provider: "hermes",
             fallback: true,
-            fallbackReason: error.failure === "circuit_open" ? "hermes_circuit_open" : "hermes_unavailable",
+            fallbackReason: toHermesFallbackReason(error.failure),
           },
         };
       }
@@ -108,7 +116,7 @@ export class AgentGateway {
     const requestId = input.requestId ?? randomUUID();
     const config = enforceHermesEligibility(await this.config(input.context), input.context.organizationId);
     let fallback = !config.enabled;
-    let fallbackReason: "gateway_disabled" | "hermes_unavailable" | "hermes_circuit_open" | undefined = !config.enabled ? "gateway_disabled" : undefined;
+    let fallbackReason: "gateway_disabled" | HermesFallbackReason | undefined = !config.enabled ? "gateway_disabled" : undefined;
     let response: AgentResponse;
 
     if (config.enabled && config.provider === "hermes") {
@@ -127,7 +135,7 @@ export class AgentGateway {
       } catch (error) {
         if (!(error instanceof HermesUnavailableError)) throw error;
         fallback = true;
-        fallbackReason = error.failure === "circuit_open" ? "hermes_circuit_open" : "hermes_unavailable";
+        fallbackReason = toHermesFallbackReason(error.failure);
         response = await this.legacyAgent.respond({ ...input, requestId, persistUserMessage: false });
       }
     } else {
@@ -196,7 +204,7 @@ export class AgentGateway {
     config: TenantGatewayConfig,
     response: AgentResponse,
     fallback: boolean,
-    fallbackReason: "gateway_disabled" | "hermes_unavailable" | "hermes_circuit_open" | undefined,
+    fallbackReason: "gateway_disabled" | HermesFallbackReason | undefined,
   ) {
     try {
       await this.repository.audit({

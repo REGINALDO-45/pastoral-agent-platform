@@ -99,7 +99,7 @@ export type AgentResponse = {
     version: "v1";
     provider: "legacy" | "hermes";
     fallback: boolean;
-    fallbackReason?: "gateway_disabled" | "hermes_unavailable" | "hermes_circuit_open" | "hermes_pilot_local" | "local_confirmation";
+    fallbackReason?: "gateway_disabled" | "hermes_unavailable" | "hermes_circuit_open" | "hermes_invalid_request" | "hermes_pilot_local" | "local_confirmation";
   };
   thanos?: {
     version: string;

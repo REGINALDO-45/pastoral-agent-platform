@@ -2,7 +2,7 @@ import { ENV } from "../_core/env";
 import type { AgentGatewayRuntimeConfig } from "./gatewayConfig";
 import { HERMES_HEALTH_PATH, HERMES_RESPOND_PATH, hermesRequestSchema, parseHermesResponse } from "./hermesContract";
 
-export type HermesFailureCode = "disabled" | "unconfigured" | "circuit_open" | "timeout" | "network_error" | "response_error";
+export type HermesFailureCode = "disabled" | "unconfigured" | "circuit_open" | "timeout" | "network_error" | "response_error" | "invalid_request";
 export type HermesConnectionStatus = "disabled" | "unconfigured" | "unknown" | "connected" | "degraded" | "circuit_open";
 
 export type HermesSanitizedStatus = {
@@ -125,6 +125,17 @@ export class HermesClient {
     if (status.connection === "unconfigured") throw new HermesUnavailableError("unconfigured");
     if (status.connection === "circuit_open") throw new HermesUnavailableError("circuit_open");
 
+    const parsedRequest = hermesRequestSchema.safeParse({
+      version: "v1",
+      requestId: input.requestId,
+      model: config.model,
+      system: input.system,
+      user: input.user,
+      fallback: input.fallback,
+    });
+    if (!parsedRequest.success) throw new HermesUnavailableError("invalid_request");
+
+    const requestBody = JSON.stringify(parsedRequest.data);
     let lastFailure: HermesFailureCode = "network_error";
     const attempts = config.hermes.retries + 1;
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
@@ -137,7 +148,7 @@ export class HermesClient {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.apiKey}` },
           signal: abort.signal,
-          body: JSON.stringify(hermesRequestSchema.parse({ version: "v1", requestId: input.requestId, model: config.model, system: input.system, user: input.user, fallback: input.fallback })),
+          body: requestBody,
         });
         if (!response.ok) {
           lastFailure = "response_error";

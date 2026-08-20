@@ -14,7 +14,7 @@ export type ModelGenerationResult = {
     version: "v1";
     provider: "legacy" | "hermes";
     fallback: boolean;
-    fallbackReason?: "gateway_disabled" | "hermes_unavailable" | "hermes_circuit_open";
+    fallbackReason?: "gateway_disabled" | "hermes_unavailable" | "hermes_circuit_open" | "hermes_invalid_request";
   };
 };
 
