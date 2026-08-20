@@ -1,0 +1,86 @@
+name: THÁNOS Hermes Sandbox ON Control
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: thanos-hermes-sandbox-on
+  cancel-in-progress: true
+
+jobs:
+  controlled-on:
+    name: Hermes ON allowlisted with mocked transport
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NODE_ENV: test
+      HERMES_ENABLED: "true"
+      AGENT_GATEWAY_PROVIDER: hermes
+      HERMES_ORGANIZATION_IDS: "1"
+      HERMES_BASE_URL: https://hermes.sandbox.invalid
+      HERMES_API_KEY: sandbox-placeholder
+      THANOS_PILOT_ENABLED: "false"
+      THANOS_PILOT_KILL_SWITCH: "true"
+      THANOS_PILOT_ORGANIZATION_IDS: ""
+      THANOS_PILOT_USER_IDS: ""
+      THANOS_PILOT_VERSION: thanos-hermes-sandbox-on-v1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify controlled ON boundary
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$HERMES_ENABLED" == "true" ]]
+          [[ "$AGENT_GATEWAY_PROVIDER" == "hermes" ]]
+          [[ "$HERMES_ORGANIZATION_IDS" == "1" ]]
+          [[ "$HERMES_BASE_URL" == "https://hermes.sandbox.invalid" ]]
+          [[ "$HERMES_API_KEY" == "sandbox-placeholder" ]]
+          [[ "$THANOS_PILOT_ENABLED" == "false" ]]
+          [[ "$THANOS_PILOT_KILL_SWITCH" == "true" ]]
+          echo "Controlled Hermes-ON boundary verified: one allowlisted organization, mocked transport, pilot disabled."
+
+      - name: Run Hermes contract and controlled rollout tests
+        run: >-
+          pnpm test -- --run
+          server/pastoral/hermesClient.test.ts
+          server/pastoral/hermesContract.test.ts
+          server/pastoral/hermesOperational.test.ts
+          server/pastoral/agentGateway.test.ts
+          server/pastoral/tenantGatewayConfig.test.ts
+          server/pastoral/thanosHermes.integration.test.ts
+
+      - name: Typecheck
+        run: pnpm check
+
+      - name: Build
+        run: pnpm build
+
+      - name: Confirm no WRITE or production endpoint
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$THANOS_PILOT_ENABLED" == "false" ]]
+          [[ "$THANOS_PILOT_KILL_SWITCH" == "true" ]]
+          [[ "$HERMES_BASE_URL" == "https://hermes.sandbox.invalid" ]]
+          echo "No WRITE path or production Hermes endpoint is enabled by this workflow."
