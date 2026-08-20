@@ -187,6 +187,7 @@ describe("Consultas pastorais autenticadas", () => {
       expect(resolvedB).toMatchObject({ status: "disabled", provider: "legacy", model: "tenant-b-isolated-model", source: "organization", hermes: { enabled: false } });
       expect(JSON.stringify(resolvedA)).not.toMatch(/key|token|url/i);
       expect(audits.some(entry => entry.organizationId === 1 && entry.userId === 1)).toBe(true);
+      await db.update(organizationMemberships).set({ role: "pastor" }).where(eq(organizationMemberships.userId, demoPastorB.id));
       await expect(callerB.pastoral.updateAgentSettings({ enabled: true, provider: "legacy", model: "denied-model", fallbackPolicy: "deterministic" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     });
   });
