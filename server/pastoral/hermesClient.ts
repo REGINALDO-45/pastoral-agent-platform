@@ -1,5 +1,6 @@
 import { ENV } from "../_core/env";
 import type { AgentGatewayRuntimeConfig } from "./gatewayConfig";
+import { HERMES_HEALTH_PATH, HERMES_RESPOND_PATH, hermesRequestSchema, parseHermesResponse } from "./hermesContract";
 
 export type HermesFailureCode = "disabled" | "unconfigured" | "circuit_open" | "timeout" | "network_error" | "response_error";
 export type HermesConnectionStatus = "disabled" | "unconfigured" | "unknown" | "connected" | "degraded" | "circuit_open";
@@ -50,13 +51,6 @@ function createCircuitState(): HermesCircuitState {
   return { failures: 0, openUntil: 0, latencyMs: null, lastFailure: null, lastConnection: "unknown" };
 }
 
-function responseContent(payload: unknown): { content: string; model: string } | null {
-  if (!payload || typeof payload !== "object") return null;
-  const candidate = payload as { content?: unknown; model?: unknown };
-  if (typeof candidate.content !== "string" || !candidate.content.trim() || candidate.content.length > 4_000) return null;
-  return { content: candidate.content.trim(), model: typeof candidate.model === "string" && candidate.model.trim() ? candidate.model.trim().slice(0, 160) : "hermes-configured" };
-}
-
 export class HermesClient {
   private readonly circuitStates = new Map<string, HermesCircuitState>();
 
@@ -90,7 +84,7 @@ export class HermesClient {
       const abort = new AbortController();
       const timer = setTimeout(() => abort.abort(), config.hermes.timeoutMs);
       try {
-        const endpoint = new URL("health", this.baseUrl).toString();
+        const endpoint = new URL(HERMES_HEALTH_PATH, this.baseUrl).toString();
         const response = await this.fetcher(endpoint, { method: "GET", headers: { Authorization: `Bearer ${this.apiKey}` }, signal: abort.signal });
         if (!response.ok) {
           lastFailure = "response_error";
@@ -138,12 +132,12 @@ export class HermesClient {
       const abort = new AbortController();
       const timer = setTimeout(() => abort.abort(), config.hermes.timeoutMs);
       try {
-        const endpoint = new URL("v1/agent/respond", this.baseUrl).toString();
+        const endpoint = new URL(HERMES_RESPOND_PATH, this.baseUrl).toString();
         const response = await this.fetcher(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.apiKey}` },
           signal: abort.signal,
-          body: JSON.stringify({ version: "v1", requestId: input.requestId, model: config.model, system: input.system, user: input.user, fallback: input.fallback }),
+          body: JSON.stringify(hermesRequestSchema.parse({ version: "v1", requestId: input.requestId, model: config.model, system: input.system, user: input.user, fallback: input.fallback })),
         });
         if (!response.ok) {
           lastFailure = "response_error";
@@ -159,7 +153,7 @@ export class HermesClient {
           await this.notifyAttempt(onAttempt, { attempt, success: false, latencyMs: null, failure: lastFailure });
           continue;
         }
-        const generated = responseContent(payload);
+        const generated = parseHermesResponse(payload);
         if (!generated) {
           lastFailure = "response_error";
           await this.notifyAttempt(onAttempt, { attempt, success: false, latencyMs: null, failure: lastFailure });

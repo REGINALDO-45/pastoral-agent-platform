@@ -4,6 +4,7 @@ export type AgentGatewayRuntimeConfig = {
   enabled: boolean;
   provider: "legacy" | "hermes";
   model: string;
+  hermesOrganizationIds: number[];
   hermes: {
     enabled: boolean;
     configured: boolean;
@@ -25,6 +26,15 @@ function positiveInteger(value: string, fallback: number) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function positiveIds(value: string) {
+  const ids: number[] = [];
+  for (const item of value.split(",")) {
+    const id = Number.parseInt(item.trim(), 10);
+    if (Number.isInteger(id) && id > 0 && !ids.includes(id)) ids.push(id);
+  }
+  return ids;
+}
+
 export function getAgentGatewayRuntimeConfig(): AgentGatewayRuntimeConfig {
   const provider = ENV.agentGatewayProvider.trim().toLowerCase() === "hermes" ? "hermes" : "legacy";
   const hermesEnabled = enabled(ENV.hermesEnabled, false);
@@ -32,6 +42,7 @@ export function getAgentGatewayRuntimeConfig(): AgentGatewayRuntimeConfig {
     enabled: enabled(ENV.agentGatewayEnabled, true),
     provider,
     model: ENV.agentGatewayModel.trim() || "legacy-router",
+    hermesOrganizationIds: positiveIds(ENV.hermesOrganizationIds),
     hermes: {
       enabled: hermesEnabled,
       configured: Boolean(ENV.hermesBaseUrl && ENV.hermesApiKey),
@@ -42,6 +53,15 @@ export function getAgentGatewayRuntimeConfig(): AgentGatewayRuntimeConfig {
       circuitCooldownMs: Math.min(300_000, positiveInteger(ENV.hermesCircuitCooldownMs, 30_000)),
     },
   };
+}
+
+export function enforceHermesEligibility<T extends AgentGatewayRuntimeConfig>(config: T, organizationId: number): T {
+  if (config.provider !== "hermes" || config.hermesOrganizationIds.includes(organizationId)) return config;
+  return {
+    ...config,
+    provider: "legacy",
+    hermes: { ...config.hermes, enabled: false },
+  } as T;
 }
 
 export function getAgentGatewayStatus() {

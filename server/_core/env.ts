@@ -18,6 +18,7 @@ export const ENV = {
   hermesRetries: process.env.HERMES_RETRIES ?? "1",
   hermesCircuitFailureThreshold: process.env.HERMES_CIRCUIT_FAILURE_THRESHOLD ?? "3",
   hermesCircuitCooldownMs: process.env.HERMES_CIRCUIT_COOLDOWN_MS ?? "30000",
+  hermesOrganizationIds: process.env.HERMES_ORGANIZATION_IDS ?? "",
   n8nEnabled: process.env.N8N_ENABLED ?? "false",
   n8nAllowedWorkflows: process.env.N8N_ALLOWED_WORKFLOWS ?? "",
   thanosPilotEnabled: process.env.THANOS_PILOT_ENABLED ?? "false",

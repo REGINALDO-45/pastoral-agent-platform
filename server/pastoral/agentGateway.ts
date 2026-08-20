@@ -4,6 +4,7 @@ import { getTenantGatewayConfig, type TenantGatewayConfig } from "./tenantGatewa
 import { HermesClient, HermesUnavailableError, type HermesAttempt } from "./hermesClient";
 import { ModelRouter, type ModelGenerationInput, type ModelGenerationResult } from "./modelRouter";
 import { toSanitizedTenantGatewayStatus } from "./tenantGatewayConfig";
+import { enforceHermesEligibility } from "./gatewayConfig";
 import type { AgentResponse, PastoralRepository, TenantContext } from "./types";
 
 const GATEWAY_NAME = "agent-gateway-v1";
@@ -32,7 +33,7 @@ export class AgentGateway {
 
   /** Porta de geração compartilhada pelo THÁNOS sem expor tools, repositório ou tenant ao provider. */
   async generate(input: GovernedModelGenerationInput): Promise<ModelGenerationResult> {
-    const config = await this.config(input.context);
+    const config = enforceHermesEligibility(await this.config(input.context), input.context.organizationId);
     let result: ModelGenerationResult;
 
     if (config.enabled && config.provider === "hermes") {
@@ -78,12 +79,12 @@ export class AgentGateway {
   }
 
   async getStatus(context: TenantContext) {
-    const config = await this.config(context);
+    const config = enforceHermesEligibility(await this.config(context), context.organizationId);
     return toSanitizedTenantGatewayStatus(config, this.hermes.getStatus(config, this.hermesIsolationKey(context)));
   }
 
   async testHermesConnection(context: TenantContext) {
-    const config = await this.config(context);
+    const config = enforceHermesEligibility(await this.config(context), context.organizationId);
     const requestId = randomUUID();
     const isolationKey = this.hermesIsolationKey(context);
     const probe = await this.hermes.probe(config, attempt => this.auditHermesAttempt(context, config, requestId, attempt), isolationKey);
@@ -105,7 +106,7 @@ export class AgentGateway {
 
   async respond(input: RespondInput): Promise<AgentResponse> {
     const requestId = input.requestId ?? randomUUID();
-    const config = await this.config(input.context);
+    const config = enforceHermesEligibility(await this.config(input.context), input.context.organizationId);
     let fallback = !config.enabled;
     let fallbackReason: "gateway_disabled" | "hermes_unavailable" | "hermes_circuit_open" | undefined = !config.enabled ? "gateway_disabled" : undefined;
     let response: AgentResponse;
