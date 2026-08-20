@@ -70,6 +70,63 @@ describe("cliente Hermes resiliente", () => {
     expect(JSON.stringify({ captured: String(captured), attempts, status: client.getStatus(noRetryConfig, "organization:1") })).not.toMatch(/private|secret-not-returned|hermes\.example/i);
   });
 
+  const validInput = {
+    requestId: "valid-request",
+    system: "Sistema sintético",
+    user: "Resumo autorizado",
+    fallback: "Fallback local",
+    isolationKey: "organization:1",
+  };
+
+  async function expectInvalidRequest(input: typeof validInput, model = config.model) {
+    let calls = 0;
+    const attempts: unknown[] = [];
+    const client = new HermesClient(async () => {
+      calls += 1;
+      return new Response(JSON.stringify({ content: "unexpected" }), { status: 200 });
+    }, () => 100, "https://hermes.example/", "secret-not-returned");
+    const requestConfig = { ...config, model, hermes: { ...config.hermes, retries: 2 } };
+
+    let captured: unknown;
+    try {
+      await client.generate(requestConfig, input, attempt => {
+        attempts.push(attempt);
+      });
+    } catch (error) {
+      captured = error;
+    }
+
+    expect(captured).toBeInstanceOf(HermesUnavailableError);
+    expect(captured).toMatchObject({ failure: "invalid_request" });
+    expect(calls).toBe(0);
+    expect(attempts).toEqual([]);
+    expect(JSON.stringify({ captured, attempts })).not.toMatch(/secret-not-returned|private|zod|stack/i);
+  }
+
+  it("classifica requestId vazio como invalid_request sem fetch nem retry", async () => {
+    await expectInvalidRequest({ ...validInput, requestId: "" });
+  });
+
+  it("classifica requestId acima do limite como invalid_request sem fetch nem retry", async () => {
+    await expectInvalidRequest({ ...validInput, requestId: "x".repeat(129) });
+  });
+
+  it("classifica model inválido como invalid_request sem fetch nem retry", async () => {
+    await expectInvalidRequest(validInput, "x".repeat(161));
+  });
+
+  it("classifica system acima do limite como invalid_request sem fetch nem retry", async () => {
+    await expectInvalidRequest({ ...validInput, system: "x".repeat(20_001) });
+  });
+
+  it("classifica user acima do limite como invalid_request sem fetch nem retry", async () => {
+    await expectInvalidRequest({ ...validInput, user: "x".repeat(20_001) });
+  });
+
+  it("classifica fallback acima do limite como invalid_request sem fetch nem retry", async () => {
+    await expectInvalidRequest({ ...validInput, fallback: "x".repeat(20_001) });
+  });
+
   it("classifica timeout e encerra a tentativa pelo AbortSignal", async () => {
     const client = new HermesClient((_url, init) => new Promise((_resolve, reject) => {
       init?.signal?.addEventListener("abort", () => reject(new DOMException("private timeout detail", "AbortError")), { once: true });

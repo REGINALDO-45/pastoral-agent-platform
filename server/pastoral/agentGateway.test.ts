@@ -47,6 +47,46 @@ describe("Agent Gateway", () => {
     expect(repository.audits).toContainEqual(expect.objectContaining({ action: "agent_gateway.respond", metadata: expect.objectContaining({ requestId: "request-pilot-1", fallback: true }) }));
   });
 
+  it("classifica invalid_request, faz fallback local e audita sem detalhes brutos", async () => {
+    const repository = new GatewayRepository();
+    let hermesCalls = 0;
+    const hermes = new HermesClient(async () => {
+      hermesCalls += 1;
+      return new Response(JSON.stringify({ content: "unexpected" }), { status: 200 });
+    }, () => 100, "https://hermes.example/", "secret-not-returned");
+    const gateway = new AgentGateway(repository, new AgentCore(repository), async () => ({
+      enabled: true,
+      provider: "hermes",
+      model: "x".repeat(161),
+      hermesOrganizationIds: [1, 2],
+      hermes: { enabled: true, configured: true, model: "hermes-pilot", timeoutMs: 4_500, retries: 2, circuitFailureThreshold: 3, circuitCooldownMs: 30_000 },
+      fallbackPolicy: "deterministic",
+      source: "organization",
+    }), hermes);
+
+    const response = await gateway.generate({
+      context,
+      requestId: "request-invalid-model",
+      system: "Sistema sintético",
+      user: "Responda somente com fallback local",
+      fallback: "Fallback local seguro",
+    });
+
+    expect(response).toMatchObject({
+      content: "Fallback local seguro",
+      provider: "deterministic",
+      gateway: { provider: "hermes", fallback: true, fallbackReason: "hermes_invalid_request" },
+    });
+    expect(hermesCalls).toBe(0);
+    expect(repository.audits).toContainEqual(expect.objectContaining({
+      action: "agent_gateway.generate",
+      requestId: "request-invalid-model",
+      result: "hermes_fallback",
+      metadata: expect.objectContaining({ requestId: "request-invalid-model", fallback: true, fallbackReason: "hermes_invalid_request" }),
+    }));
+    expect(JSON.stringify(repository.audits)).not.toMatch(/secret-not-returned|hermes\.example|zod|stack/i);
+  });
+
   it("audita teste Hermes sem incluir configurações internas", async () => {
     const repository = new GatewayRepository();
     const gateway = new AgentGateway(repository, new AgentCore(repository), async () => ({
