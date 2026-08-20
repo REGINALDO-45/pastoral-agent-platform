@@ -1,0 +1,136 @@
+name: THÁNOS Hermes Live Sandbox Proof
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: thanos-hermes-live-sandbox
+  cancel-in-progress: true
+
+jobs:
+  live-proof:
+    name: Governed Hermes sandbox proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: hermes-sandbox
+    env:
+      NODE_ENV: test
+      HERMES_ENABLED: "true"
+      AGENT_GATEWAY_PROVIDER: hermes
+      AGENT_GATEWAY_MODEL: hermes-live-sandbox
+      HERMES_MODEL: hermes-live-sandbox
+      HERMES_ORGANIZATION_IDS: "900001"
+      HERMES_BASE_URL: ${{ secrets.HERMES_BASE_URL }}
+      HERMES_API_KEY: ${{ secrets.HERMES_API_KEY }}
+      HERMES_PRODUCTION_HOST_DENYLIST: ${{ vars.HERMES_PRODUCTION_HOST_DENYLIST }}
+      HERMES_TIMEOUT_MS: "4500"
+      HERMES_RETRIES: "1"
+      HERMES_CIRCUIT_FAILURE_THRESHOLD: "3"
+      HERMES_CIRCUIT_COOLDOWN_MS: "30000"
+      AGENT_PROVIDER: deterministic
+      THANOS_PILOT_ENABLED: "false"
+      THANOS_PILOT_KILL_SWITCH: "true"
+      THANOS_PILOT_ORGANIZATION_IDS: ""
+      THANOS_PILOT_USER_IDS: ""
+      THANOS_PILOT_VERSION: thanos-hermes-live-sandbox-v1
+      N8N_ENABLED: "false"
+      WRITE_ENABLED: "false"
+      ORACLE_ENABLED: "false"
+      TELEGRAM_ENABLED: "false"
+      WHATSAPP_ENABLED: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify live sandbox boundary before Hermes access
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$HERMES_ENABLED" == "true" ]]
+          [[ "$AGENT_GATEWAY_PROVIDER" == "hermes" ]]
+          [[ "$HERMES_ORGANIZATION_IDS" == "900001" ]]
+          [[ "$THANOS_PILOT_ENABLED" == "false" ]]
+          [[ "$THANOS_PILOT_KILL_SWITCH" == "true" ]]
+          [[ "$N8N_ENABLED" == "false" ]]
+          [[ "$WRITE_ENABLED" == "false" ]]
+          [[ "$ORACLE_ENABLED" == "false" ]]
+          [[ "$TELEGRAM_ENABLED" == "false" ]]
+          [[ "$WHATSAPP_ENABLED" == "false" ]]
+          [[ -n "${HERMES_BASE_URL:-}" ]]
+          [[ -n "${HERMES_API_KEY:-}" ]]
+          host="$(node -e 'const value = process.env.HERMES_BASE_URL; try { const url = new URL(value); process.stdout.write(url.hostname.toLowerCase()); } catch { process.exit(1); }' 2>/dev/null)"
+          [[ "$host" != "" ]]
+          [[ "$host" != *prod* ]]
+          [[ "$host" != *production* ]]
+          [[ "$host" != *live* ]]
+          [[ "$host" == *sandbox* || "$host" == *test* || "$host" == *staging* || "$host" == *stage* || "$host" == *qa* || "$host" == *dev* ]]
+          IFS=',' read -ra denied_hosts <<< "${HERMES_PRODUCTION_HOST_DENYLIST:-}"
+          for denied_host in "${denied_hosts[@]}"; do
+            [[ -z "$denied_host" || "$host" != "${denied_host,,}" ]]
+          done
+          echo "Hermes sandbox credentials present: yes"
+          echo "Controlled boundary verified: one synthetic organization, THÁNOS pilot off, kill switch on, integrations and WRITE off, non-production host policy passed."
+
+      - name: Run focused M19.1 regression before live access
+        run: >-
+          pnpm test -- --run
+          server/pastoral/hermesClient.test.ts
+          server/pastoral/hermesContract.test.ts
+          server/pastoral/hermesOperational.test.ts
+          server/pastoral/agentGateway.test.ts
+          server/pastoral/tenantGatewayConfig.test.ts
+          server/pastoral/thanosHermes.integration.test.ts
+
+      - name: Typecheck
+        run: pnpm check
+
+      - name: Build
+        run: pnpm build
+
+      - name: Execute synthetic live Hermes proof and rollback
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          pnpm exec tsx scripts/hermes-live-sandbox.ts | tee live-proof.json
+
+      - name: Upload sanitized live evidence
+        if: always() && hashFiles('live-proof.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: thanos-hermes-live-sandbox-evidence
+          path: live-proof.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Confirm no adjacent integrations or production access
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$THANOS_PILOT_ENABLED" == "false" ]]
+          [[ "$THANOS_PILOT_KILL_SWITCH" == "true" ]]
+          [[ "$N8N_ENABLED" == "false" ]]
+          [[ "$WRITE_ENABLED" == "false" ]]
+          [[ "$ORACLE_ENABLED" == "false" ]]
+          [[ "$TELEGRAM_ENABLED" == "false" ]]
+          [[ "$WHATSAPP_ENABLED" == "false" ]]
+          echo "No production, WRITE, n8n, Telegram, WhatsApp, or Oracle path was enabled by this workflow."
