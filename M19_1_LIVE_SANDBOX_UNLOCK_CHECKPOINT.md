@@ -4,7 +4,7 @@
 
 > **M19.1 BLOQUEADO — DECISÃO HUMANA NECESSÁRIA**
 
-A correção de fronteira e a preparação do workflow live foram concluídas. A prova real contra um Hermes sandbox externo não foi executada nesta sessão porque não havia `HERMES_BASE_URL` nem `HERMES_API_KEY` disponíveis localmente, o Environment GitHub `hermes-sandbox` não estava configurado no repositório auditado e nenhuma credencial foi inventada, reutilizada ou exposta. Por consequência, health real, generation real, métricas reais, falha externa controlada e rollback depois de uma chamada real permanecem não comprovados.
+A correção de fronteira e a preparação do workflow live foram concluídas. A prova real contra um Hermes sandbox externo não foi executada nesta sessão porque `HERMES_BASE_URL` e `HERMES_API_KEY` estavam ausentes localmente e o Environment GitHub `hermes-sandbox` não existe no repositório auditado. Nenhuma credencial foi inventada, reutilizada ou exposta. Por consequência, health real, generation real, métricas reais, falha externa controlada e rollback depois de uma chamada real permanecem não comprovados.
 
 A classificação segue obrigatoriamente o critério do briefing M19.1: sem todas as provas live, o resultado não pode ser elevado a `M19 PRONTO PARA AUDITORIA EXTERNA`.
 
@@ -24,7 +24,7 @@ A classificação segue obrigatoriamente o critério do briefing M19.1: sem toda
 | WRITE | Não habilitado |
 | Credenciais | Nenhuma credencial commitada, impressa ou armazenada em artifact |
 
-A branch M19.1 foi criada localmente apontando exatamente para o SHA M19 publicado. O push normal será registrado na entrega final junto com o SHA HEAD e a confirmação do working tree limpo.
+A branch M19.1 foi criada localmente apontando exatamente para o SHA M19 publicado. O push normal foi concluído e a branch remota aponta para `f27fd161487846d8f4d993c8c8b84798c1156086`; o working tree permanece limpo, exceto pelos artefatos de auditoria ainda preparados para o commit documental final.
 
 ## Correção da fronteira `invalid_request`
 
@@ -96,7 +96,7 @@ context sintético
 
 O runner utiliza apenas a organização sintética `900001`, usuário sintético, mensagens sintéticas e os tokens de teste `HERMES_SANDBOX_OK`/`HERMES_SANDBOX_FALLBACK`. Ele não abre banco real, não consulta tenant real, não envia áudio, transcrição, histórico, nomes reais, cookies, SQL, headers brutos, stack trace ou prompts privados.
 
-Após a geração bem-sucedida, o runner executa uma falha sandbox controlada com transporte sintético indisponível e verifica fallback local, requestId preservado, uma tentativa externa, zero execução funcional duplicada e zero WRITE. Em seguida, aplica rollback em uma nova instância governada com `HERMES_ENABLED=false` e provider `legacy`, executa nova request sintética e verifica zero novas chamadas Hermes.
+Após a geração bem-sucedida, o runner executa uma falha sandbox controlada com transporte sintético indisponível e verifica fallback local, requestId preservado, exatamente `config.hermes.retries + 1` tentativas externas (atualmente duas com `HERMES_RETRIES=1`), zero execução funcional duplicada e zero WRITE. Em seguida, aplica rollback em uma nova instância governada com `HERMES_ENABLED=false` e provider `legacy`, executa nova request sintética e verifica zero novas chamadas Hermes.
 
 O runner também faz uma verificação de sanitização dos registros de auditoria e emite somente JSON sem secrets, Authorization, URL base, cookies, tokens, SQL, stack trace, áudio ou transcrição.
 
@@ -137,19 +137,20 @@ O runner está preparado para emitir as métricas de health e generation quando 
 | Hermes client + AgentGateway focados | 21 testes aprovados |
 | Contrato, operação, tenant e integração THÁNOS | 17 testes adicionais aprovados |
 | Total focado M19.1 | 38 testes aprovados em 6 arquivos |
-| Suíte completa | 49 arquivos aprovados; 1 arquivo com 9 falhas ambientais por banco de teste indisponível |
-| `pnpm check` | Aprovado |
-| `pnpm build` | Aprovado; somente avisos preexistentes de analytics/chunks |
+| Suíte local sem banco | 49 arquivos aprovados; o arquivo de integração não pode ser executado localmente porque Docker/MySQL não estão disponíveis |
+| CI Hermes-OFF com MySQL 8.4 | **50 arquivos e 211 testes aprovados; run 32395892553 verde** |
+| `pnpm check` | Aprovado localmente e no CI |
+| `pnpm build` | Aprovado localmente e no CI; somente avisos preexistentes de analytics/chunks |
 | `git diff --check` | Aprovado |
 | Runner sem credenciais | Falha fechada esperada, sem chamada externa |
 | Workflow mock Hermes-ON | Preservado sem alteração; dispatch não disponível no catálogo da branch default sem merge |
 | Workflow live | Sintaxe e boundary revisados; não executado sem credenciais |
 
-O workflow Hermes-OFF histórico foi disparado manualmente no SHA M19.1 pelo run [`32332395116`](https://github.com/REGINALDO-45/pastoral-agent-platform/actions/runs/32332395116) e terminou com `failure` no job `Isolated MySQL 8.4 sandbox`, durante os testes de integração que reportaram `Banco de teste indisponível.`. A execução confirmou que o bloqueio é de infraestrutura/banco do CI, não uma falha atribuível à correção M19.1.
+O workflow Hermes-OFF histórico foi disparado manualmente três vezes durante a correção. O run [`32332395116`](https://github.com/REGINALDO-45/pastoral-agent-platform/actions/runs/32332395116) revelou que o MySQL 8.4 estava saudável e que havia divergências reais de expectativa/estado nos testes do router; o run [`32395607815`](https://github.com/REGINALDO-45/pastoral-agent-platform/actions/runs/32395607815) reduziu o problema a uma única assertion de role; e o run final [`32395892553`](https://github.com/REGINALDO-45/pastoral-agent-platform/actions/runs/32395892553), no SHA `f27fd161`, terminou verde com MySQL 8.4, 50 arquivos e 211 testes aprovados.
 
 O dispatch do workflow Hermes-ON mock foi tentado pelo nome do arquivo, mas a API do GitHub respondeu `404: workflow ... not found on the default branch`. A listagem do conteúdo confirma que o workflow existe na branch M19.1, porém não está registrado no catálogo da branch default. Como a regra do projeto proíbe merge apenas para habilitar execução, nenhum merge foi feito e o mock permanece não executado nesta sessão.
 
-A falha da suíte completa está em `server/pastoral/router.integration.test.ts`, que lança `Banco de teste indisponível.` em nove testes. Ela não foi reinterpretada como sucesso nem corrigida fora do escopo M19.1. O CI histórico Hermes-OFF continua sendo o caminho aprovado para regressão com MySQL 8.4 efêmero.
+A suíte completa local permanece limitada pela ausência de Docker/MySQL no sandbox, mas essa limitação foi coberta pelo CI Hermes-OFF com MySQL 8.4 efêmero. Os testes de router foram corrigidos sem alterar `enforceHermesEligibility`: o provider persistido `hermes` continua sendo reconhecido, enquanto o provider efetivo de tenant não allowlisted permanece `legacy`, e cada mutação de membership é restaurada em `finally`. O CI final confirma a regressão verde.
 
 ## Segurança
 
@@ -167,3 +168,6 @@ A execução deve produzir health válido e generation válida pelo caminho `TH�
 [2]: https://github.com/REGINALDO-45/pastoral-agent-platform/blob/agent/thanos-hermes-live-sandbox-unlock/.github/workflows/thanos-hermes-sandbox-on.yml "Workflow Hermes-ON estrutural/mock preservado"
 [3]: https://github.com/REGINALDO-45/pastoral-agent-platform/blob/agent/thanos-hermes-live-sandbox-unlock/.github/workflows/thanos-hermes-live-sandbox.yml "Workflow Hermes live sandbox governado"
 [4]: https://github.com/REGINALDO-45/pastoral-agent-platform/tree/agent/thanos-hermes-controlled-rollout "Base M19 publicada"
+[5]: https://github.com/REGINALDO-45/pastoral-agent-platform/actions/runs/32395892553 "CI Hermes-OFF verde no SHA f27fd161"
+[6]: https://github.com/REGINALDO-45/pastoral-agent-platform/actions/runs/32395607815 "CI intermediário com uma assertion restante"
+[7]: https://github.com/REGINALDO-45/pastoral-agent-platform/actions/runs/32332395116 "CI inicial auditado"

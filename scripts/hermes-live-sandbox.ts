@@ -270,7 +270,7 @@ async function run() {
   const controlledFailurePassed =
     controlledFailure.gateway?.fallback === true &&
     controlledFailure.gateway.fallbackReason === "hermes_unavailable" &&
-    controlledFailureCalls === 1 &&
+    controlledFailureCalls === config.hermes.retries + 1 &&
     controlledFailureAudit?.requestId === CONTROLLED_FAILURE_REQUEST_ID &&
     failureRepository.queryCalls === 0 &&
     failureRepository.messageWrites === 0 &&
