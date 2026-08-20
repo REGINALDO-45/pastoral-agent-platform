@@ -5,6 +5,7 @@ const config = {
   enabled: true,
   provider: "hermes" as const,
   model: "hermes-pilot",
+  hermesOrganizationIds: [1],
   hermes: { enabled: true, configured: true, model: "hermes-pilot", timeoutMs: 25, retries: 1, circuitFailureThreshold: 2, circuitCooldownMs: 100 },
 };
 

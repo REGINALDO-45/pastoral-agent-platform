@@ -74,6 +74,7 @@ function tenantGatewayConfig(overrides: Readonly<{ model?: string; timeoutMs?: n
     enabled: true,
     provider: "hermes" as const,
     model: overrides.model ?? "hermes-tenant-a",
+    hermesOrganizationIds: [1, 2],
     hermes: {
       enabled: true,
       configured: true,

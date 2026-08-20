@@ -5,6 +5,7 @@ const base = {
   enabled: true,
   provider: "legacy" as const,
   model: "legacy-router",
+  hermesOrganizationIds: [],
   hermes: { enabled: false, configured: false, model: "hermes-default", timeoutMs: 4_500, retries: 1, circuitFailureThreshold: 3, circuitCooldownMs: 30_000 },
 };
 
