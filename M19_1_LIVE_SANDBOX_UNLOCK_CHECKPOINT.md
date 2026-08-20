@@ -142,8 +142,12 @@ O runner está preparado para emitir as métricas de health e generation quando 
 | `pnpm build` | Aprovado; somente avisos preexistentes de analytics/chunks |
 | `git diff --check` | Aprovado |
 | Runner sem credenciais | Falha fechada esperada, sem chamada externa |
-| Workflow mock Hermes-ON | Preservado sem alteração |
+| Workflow mock Hermes-ON | Preservado sem alteração; dispatch não disponível no catálogo da branch default sem merge |
 | Workflow live | Sintaxe e boundary revisados; não executado sem credenciais |
+
+O workflow Hermes-OFF histórico foi disparado manualmente no SHA M19.1 pelo run [`32332395116`](https://github.com/REGINALDO-45/pastoral-agent-platform/actions/runs/32332395116) e terminou com `failure` no job `Isolated MySQL 8.4 sandbox`, durante os testes de integração que reportaram `Banco de teste indisponível.`. A execução confirmou que o bloqueio é de infraestrutura/banco do CI, não uma falha atribuível à correção M19.1.
+
+O dispatch do workflow Hermes-ON mock foi tentado pelo nome do arquivo, mas a API do GitHub respondeu `404: workflow ... not found on the default branch`. A listagem do conteúdo confirma que o workflow existe na branch M19.1, porém não está registrado no catálogo da branch default. Como a regra do projeto proíbe merge apenas para habilitar execução, nenhum merge foi feito e o mock permanece não executado nesta sessão.
 
 A falha da suíte completa está em `server/pastoral/router.integration.test.ts`, que lança `Banco de teste indisponível.` em nove testes. Ela não foi reinterpretada como sucesso nem corrigida fora do escopo M19.1. O CI histórico Hermes-OFF continua sendo o caminho aprovado para regressão com MySQL 8.4 efêmero.
 
