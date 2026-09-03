@@ -27,6 +27,10 @@ class GatewayRepository implements PastoralRepository {
   private summary(tool: ToolResult["tool"]): ToolResult { return { tool, summary: "Resumo seguro", data: { organizationId: 1 } }; }
 }
 
+function chatCompletion(content: string, model = "hermes-pilot") {
+  return { model, choices: [{ message: { role: "assistant", content } }] };
+}
+
 describe("Agent Gateway", () => {
   it("mantém o Agent Core como fallback seguro e audita requestId", async () => {
     const repository = new GatewayRepository();
@@ -52,7 +56,7 @@ describe("Agent Gateway", () => {
     let hermesCalls = 0;
     const hermes = new HermesClient(async () => {
       hermesCalls += 1;
-      return new Response(JSON.stringify({ content: "unexpected" }), { status: 200 });
+      return new Response(JSON.stringify(chatCompletion("unexpected")), { status: 200 });
     }, () => 100, "https://hermes.example/", "secret-not-returned");
     const gateway = new AgentGateway(repository, new AgentCore(repository), async () => ({
       enabled: true,
@@ -110,8 +114,8 @@ describe("Agent Gateway", () => {
     const repository = new GatewayRepository();
     const hermes = new HermesClient(
       async input => {
-        expect(String(input)).toContain("v1/agent/respond");
-        return new Response(JSON.stringify({ content: "Resposta Hermes baseada na evidência local.", model: "hermes-pilot" }), { status: 200, headers: { "Content-Type": "application/json" } });
+        expect(String(input)).toContain("v1/chat/completions");
+        return new Response(JSON.stringify(chatCompletion("Resposta Hermes baseada na evidência local.")), { status: 200, headers: { "Content-Type": "application/json" } });
       },
       () => 100,
       "https://hermes.example/",
@@ -141,7 +145,7 @@ describe("Agent Gateway", () => {
     let hermesCalls = 0;
     const hermes = new HermesClient(async () => {
       hermesCalls += 1;
-      return new Response(JSON.stringify({ content: "Resposta Hermes preservada.", model: "hermes-pilot" }), { status: 200 });
+      return new Response(JSON.stringify(chatCompletion("Resposta Hermes preservada.")), { status: 200 });
     }, () => 100, "https://hermes.example/", "secret-not-returned");
     const gateway = new AgentGateway(repository, new AgentCore(repository), async () => ({
       enabled: true,
@@ -165,11 +169,10 @@ describe("Agent Gateway", () => {
     const repository = new GatewayRepository();
     let hermesCalls = 0;
     const tenantB: TenantContext = { ...context, organizationId: 2, organizationName: "Igreja B", userId: 2 };
-    const hermes = new HermesClient(async (_url, init) => {
+    const hermes = new HermesClient(async () => {
       hermesCalls += 1;
-      const body = JSON.parse(String(init?.body)) as { requestId: string };
-      if (body.requestId === "legacy-tenant-a-failure") throw new Error("tenant A offline");
-      return new Response(JSON.stringify({ content: "Tenant B continua disponível.", model: "hermes-pilot" }), { status: 200 });
+      if (hermesCalls === 1) throw new Error("tenant A offline");
+      return new Response(JSON.stringify(chatCompletion("Tenant B continua disponível.")), { status: 200 });
     }, () => 100, "https://hermes.example/", "secret-not-returned");
     const gateway = new AgentGateway(repository, new AgentCore(repository), async () => ({
       enabled: true,

@@ -1,4 +1,5 @@
 import { ENV } from "../_core/env";
+import { isSecureHermesBaseUrl } from "./hermesContract";
 
 export type AgentGatewayRuntimeConfig = {
   enabled: boolean;
@@ -45,7 +46,7 @@ export function getAgentGatewayRuntimeConfig(): AgentGatewayRuntimeConfig {
     hermesOrganizationIds: positiveIds(ENV.hermesOrganizationIds),
     hermes: {
       enabled: hermesEnabled,
-      configured: Boolean(ENV.hermesBaseUrl && ENV.hermesApiKey),
+      configured: Boolean(ENV.hermesApiKey && isSecureHermesBaseUrl(ENV.hermesBaseUrl, ENV.hermesProductionHostDenylist)),
       model: ENV.hermesModel.trim() || "hermes-default",
       timeoutMs: Math.min(15_000, positiveInteger(ENV.hermesTimeoutMs, 4_500)),
       retries: Math.min(2, positiveInteger(ENV.hermesRetries, 1) - 1),

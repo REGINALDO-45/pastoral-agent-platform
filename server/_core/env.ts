@@ -14,6 +14,7 @@ export const ENV = {
   hermesModel: process.env.HERMES_MODEL ?? "",
   hermesBaseUrl: process.env.HERMES_BASE_URL ?? "",
   hermesApiKey: process.env.HERMES_API_KEY ?? "",
+  hermesProductionHostDenylist: process.env.HERMES_PRODUCTION_HOST_DENYLIST ?? "",
   hermesTimeoutMs: process.env.HERMES_TIMEOUT_MS ?? "4500",
   hermesRetries: process.env.HERMES_RETRIES ?? "1",
   hermesCircuitFailureThreshold: process.env.HERMES_CIRCUIT_FAILURE_THRESHOLD ?? "3",

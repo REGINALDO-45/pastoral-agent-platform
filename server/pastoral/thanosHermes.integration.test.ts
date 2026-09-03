@@ -89,6 +89,10 @@ function tenantGatewayConfig(overrides: Readonly<{ model?: string; timeoutMs?: n
   };
 }
 
+function chatCompletion(content: string, model = "hermes-tenant-a") {
+  return { model, choices: [{ message: { role: "assistant", content } }] };
+}
+
 function createGovernedRouter(
   repository: GovernedIntegrationRepository,
   hermes: HermesClient,
@@ -102,10 +106,10 @@ function createGovernedRouter(
 describe("integração governada THÁNOS → Hermes", () => {
   it("gera pelo Hermes depois de três tools READ no mesmo request THÁNOS", async () => {
     const repository = new GovernedIntegrationRepository();
-    const bodies: unknown[] = [];
+    const requests: Array<{ body: unknown; idempotencyKey: string | null }> = [];
     const hermes = new HermesClient(async (_url, init) => {
-      bodies.push(JSON.parse(String(init?.body)));
-      return new Response(JSON.stringify({ content: "Resposta Hermes composta.", model: "hermes-tenant-a" }), {
+      requests.push({ body: JSON.parse(String(init?.body)), idempotencyKey: new Headers(init?.headers).get("Idempotency-Key") });
+      return new Response(JSON.stringify(chatCompletion("Resposta Hermes composta.")), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       });
@@ -135,9 +139,13 @@ describe("integração governada THÁNOS → Hermes", () => {
     expect(repository.queryAttendance).toHaveBeenCalledTimes(1);
     expect(repository.queryReports).toHaveBeenCalledTimes(1);
     expect(repository.messages.map(message => message.role)).toEqual(["user", "assistant"]);
-    expect(bodies).toEqual([expect.objectContaining({ requestId: "thanos-hermes-success", version: "v1", model: "hermes-tenant-a" })]);
-    expect(JSON.stringify(bodies)).not.toMatch(/Igreja A|Ana|"tenant"|"aggregate"/i);
-    expect(JSON.stringify(bodies)).not.toMatch(/isolationKey|organization:/i);
+    expect(requests).toEqual([{ body: {
+      model: "hermes-tenant-a",
+      messages: [expect.objectContaining({ role: "system" }), expect.objectContaining({ role: "user" })],
+      stream: false,
+    }, idempotencyKey: "thanos-hermes-success" }]);
+    expect(JSON.stringify(requests)).not.toMatch(/Igreja A|Ana|"tenant"|"aggregate"/i);
+    expect(JSON.stringify(requests)).not.toMatch(/isolationKey|organization:|fallback/i);
 
     const correlated = repository.audits.filter(event => [
       "agent.tool.execute",
@@ -265,7 +273,7 @@ describe("integração governada THÁNOS → Hermes", () => {
     let hermesCalls = 0;
     const hermes = new HermesClient(async () => {
       hermesCalls += 1;
-      return new Response(JSON.stringify({ content: "Resposta Hermes tenant A.", model: "hermes-tenant-a" }), { status: 200 });
+      return new Response(JSON.stringify(chatCompletion("Resposta Hermes tenant A.")), { status: 200 });
     }, () => 100, "https://hermes.internal/", "secret-never-returned");
     const gateway = new AgentGateway(
       repository,
@@ -303,7 +311,7 @@ describe("integração governada THÁNOS → Hermes", () => {
     let hermesCalls = 0;
     const hermes = new HermesClient(async () => {
       hermesCalls += 1;
-      return new Response(JSON.stringify({ content: "Resposta preservada apesar da telemetria.", model: "hermes-tenant-a" }), { status: 200 });
+      return new Response(JSON.stringify(chatCompletion("Resposta preservada apesar da telemetria.")), { status: 200 });
     }, () => 100, "https://hermes.internal/", "secret-never-returned");
     const router = createGovernedRouter(repository, hermes);
 
@@ -333,7 +341,7 @@ describe("integração governada THÁNOS → Hermes", () => {
     let hermesCalls = 0;
     const hermes = new HermesClient(async () => {
       hermesCalls += 1;
-      return new Response(JSON.stringify({ content: "Resposta preservada após auditoria de tools.", model: "hermes-tenant-a" }), { status: 200 });
+      return new Response(JSON.stringify(chatCompletion("Resposta preservada após auditoria de tools.")), { status: 200 });
     }, () => 100, "https://hermes.internal/", "secret-never-returned");
     const router = createGovernedRouter(repository, hermes);
 
@@ -359,7 +367,7 @@ describe("integração governada THÁNOS → Hermes", () => {
     let hermesCalls = 0;
     const hermes = new HermesClient(async () => {
       hermesCalls += 1;
-      return new Response(JSON.stringify({ content: "Resposta preservada após auditoria final.", model: "hermes-tenant-a" }), { status: 200 });
+      return new Response(JSON.stringify(chatCompletion("Resposta preservada após auditoria final.")), { status: 200 });
     }, () => 100, "https://hermes.internal/", "secret-never-returned");
     const router = createGovernedRouter(repository, hermes);
 
@@ -384,9 +392,8 @@ describe("integração governada THÁNOS → Hermes", () => {
     let hermesCalls = 0;
     const hermes = new HermesClient(async (_url, init) => {
       hermesCalls += 1;
-      const body = JSON.parse(String(init?.body)) as { requestId: string };
-      if (body.requestId === "tenant-a-opens-circuit") throw new Error("tenant A offline");
-      return new Response(JSON.stringify({ content: "Tenant B continua disponível.", model: "hermes-tenant-b" }), { status: 200 });
+      if (new Headers(init?.headers).get("Idempotency-Key") === "tenant-a-opens-circuit") throw new Error("tenant A offline");
+      return new Response(JSON.stringify(chatCompletion("Tenant B continua disponível.", "hermes-tenant-b")), { status: 200 });
     }, () => 100, "https://hermes.internal/", "secret-never-returned");
     const gateway = new AgentGateway(
       repository,

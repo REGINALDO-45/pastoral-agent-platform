@@ -75,7 +75,7 @@
 - Test: `server/pastoral/thanosHermes.integration.test.ts`
 
 **Interfaces:**
-- Consumes: contrato HTTP existente `POST /v1/agent/respond`.
+- Consumes: contrato oficial OpenAI-compatible `POST /v1/chat/completions` (o contrato histórico `/v1/agent/respond` foi substituído na reconciliação M19.2).
 - Produces: cobertura de timeout, rede, resposta inválida, circuito e ausência de secrets.
 
 - [x] Adicionar testes falhando para cada código de falha relevante.

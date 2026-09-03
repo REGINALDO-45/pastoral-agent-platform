@@ -98,6 +98,7 @@ function requireEnv(name: string) {
 
 function assertBoundary() {
   const baseUrl = requireEnv("HERMES_BASE_URL");
+  const expectedHost = requireEnv("HERMES_EXPECTED_HOST").toLowerCase();
   requireEnv("HERMES_API_KEY");
   if (process.env.HERMES_ENABLED !== "true")
     throw new LiveProofError("hermes_disabled");
@@ -134,8 +135,30 @@ function assertBoundary() {
     throw new LiveProofError("base_url_not_https");
   if (denylist.has(host) || /(^|[.-])(prod|production|live)([.-]|$)/.test(host))
     throw new LiveProofError("production_endpoint_denied");
-  if (!/(sandbox|test|staging|stage|qa|dev)/.test(host))
-    throw new LiveProofError("sandbox_hostname_required");
+  if (host !== expectedHost)
+    throw new LiveProofError("unexpected_hermes_host");
+}
+
+async function assertHermesHasNoApiToolsets(baseUrl: string, apiKey: string) {
+  const endpoint = new URL("v1/toolsets", baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`);
+  let response: Response;
+  try {
+    response = await fetch(endpoint, { headers: { Authorization: `Bearer ${apiKey}` } });
+  } catch (_error) {
+    throw new LiveProofError("hermes_toolset_probe_failed");
+  }
+  if (!response.ok) throw new LiveProofError("hermes_toolset_probe_failed");
+
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch (_error) {
+    throw new LiveProofError("hermes_toolset_probe_invalid");
+  }
+  const data = (payload as { data?: unknown }).data;
+  if (!Array.isArray(data)) throw new LiveProofError("hermes_toolset_probe_invalid");
+  if (data.some(item => Boolean((item as { enabled?: unknown })?.enabled)))
+    throw new LiveProofError("hermes_api_toolsets_enabled");
 }
 
 function liveConfig(): TenantGatewayConfig {
@@ -182,6 +205,7 @@ async function run() {
   const baseUrl = requireEnv("HERMES_BASE_URL");
   const apiKey = requireEnv("HERMES_API_KEY");
   const config = liveConfig();
+  await assertHermesHasNoApiToolsets(baseUrl, apiKey);
   const repository = new SyntheticRepository();
   let outboundCalls = 0;
   const liveClient = new HermesClient(
@@ -323,6 +347,7 @@ async function run() {
         thanosPilotEnabled: false,
         thanosPilotKillSwitch: true,
         n8nEnabled: false,
+        hermesApiToolsetsEnabled: 0,
         productionEndpoint: false,
         syntheticContext: true,
       },

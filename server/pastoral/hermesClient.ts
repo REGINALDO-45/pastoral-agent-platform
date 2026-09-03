@@ -1,6 +1,6 @@
 import { ENV } from "../_core/env";
 import type { AgentGatewayRuntimeConfig } from "./gatewayConfig";
-import { HERMES_HEALTH_PATH, HERMES_RESPOND_PATH, hermesRequestSchema, parseHermesResponse } from "./hermesContract";
+import { buildHermesEndpoint, HERMES_CHAT_COMPLETIONS_PATH, HERMES_HEALTH_PATH, hermesGenerationInputSchema, hermesRequestSchema, parseHermesResponse } from "./hermesContract";
 
 export type HermesFailureCode = "disabled" | "unconfigured" | "circuit_open" | "timeout" | "network_error" | "response_error" | "invalid_request";
 export type HermesConnectionStatus = "disabled" | "unconfigured" | "unknown" | "connected" | "degraded" | "circuit_open";
@@ -84,7 +84,12 @@ export class HermesClient {
       const abort = new AbortController();
       const timer = setTimeout(() => abort.abort(), config.hermes.timeoutMs);
       try {
-        const endpoint = new URL(HERMES_HEALTH_PATH, this.baseUrl).toString();
+        const endpoint = buildHermesEndpoint(this.baseUrl, HERMES_HEALTH_PATH, ENV.hermesProductionHostDenylist);
+        if (!endpoint) {
+          lastFailure = "invalid_request";
+          await this.notifyAttempt(onAttempt, { attempt, success: false, latencyMs: null, failure: lastFailure });
+          break;
+        }
         const response = await this.fetcher(endpoint, { method: "GET", headers: { Authorization: `Bearer ${this.apiKey}` }, signal: abort.signal });
         if (!response.ok) {
           lastFailure = "response_error";
@@ -125,17 +130,28 @@ export class HermesClient {
     if (status.connection === "unconfigured") throw new HermesUnavailableError("unconfigured");
     if (status.connection === "circuit_open") throw new HermesUnavailableError("circuit_open");
 
-    const parsedRequest = hermesRequestSchema.safeParse({
-      version: "v1",
+    const parsedInput = hermesGenerationInputSchema.safeParse({
       requestId: input.requestId,
       model: config.model,
       system: input.system,
       user: input.user,
       fallback: input.fallback,
     });
+    if (!parsedInput.success) throw new HermesUnavailableError("invalid_request");
+
+    const parsedRequest = hermesRequestSchema.safeParse({
+      model: parsedInput.data.model,
+      messages: [
+        { role: "system", content: parsedInput.data.system },
+        { role: "user", content: parsedInput.data.user },
+      ],
+      stream: false,
+    });
     if (!parsedRequest.success) throw new HermesUnavailableError("invalid_request");
 
     const requestBody = JSON.stringify(parsedRequest.data);
+    const endpoint = buildHermesEndpoint(this.baseUrl, HERMES_CHAT_COMPLETIONS_PATH, ENV.hermesProductionHostDenylist);
+    if (!endpoint) throw new HermesUnavailableError("invalid_request");
     let lastFailure: HermesFailureCode = "network_error";
     const attempts = config.hermes.retries + 1;
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
@@ -143,10 +159,9 @@ export class HermesClient {
       const abort = new AbortController();
       const timer = setTimeout(() => abort.abort(), config.hermes.timeoutMs);
       try {
-        const endpoint = new URL(HERMES_RESPOND_PATH, this.baseUrl).toString();
         const response = await this.fetcher(endpoint, {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.apiKey}` },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.apiKey}`, "Idempotency-Key": parsedInput.data.requestId },
           signal: abort.signal,
           body: requestBody,
         });

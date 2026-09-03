@@ -26,6 +26,7 @@ jobs:
       HERMES_ORGANIZATION_IDS: "900001"
       HERMES_BASE_URL: ${{ secrets.HERMES_BASE_URL }}
       HERMES_API_KEY: ${{ secrets.HERMES_API_KEY }}
+      HERMES_EXPECTED_HOST: ${{ vars.HERMES_EXPECTED_HOST }}
       HERMES_PRODUCTION_HOST_DENYLIST: ${{ vars.HERMES_PRODUCTION_HOST_DENYLIST }}
       HERMES_TIMEOUT_MS: "4500"
       HERMES_RETRIES: "1"
@@ -77,12 +78,13 @@ jobs:
           [[ "$WHATSAPP_ENABLED" == "false" ]]
           [[ -n "${HERMES_BASE_URL:-}" ]]
           [[ -n "${HERMES_API_KEY:-}" ]]
+          [[ -n "${HERMES_EXPECTED_HOST:-}" ]]
           host="$(node -e 'const value = process.env.HERMES_BASE_URL; try { const url = new URL(value); process.stdout.write(url.hostname.toLowerCase()); } catch { process.exit(1); }' 2>/dev/null)"
           [[ "$host" != "" ]]
+          [[ "$host" == "${HERMES_EXPECTED_HOST,,}" ]]
           [[ "$host" != *prod* ]]
           [[ "$host" != *production* ]]
           [[ "$host" != *live* ]]
-          [[ "$host" == *sandbox* || "$host" == *test* || "$host" == *staging* || "$host" == *stage* || "$host" == *qa* || "$host" == *dev* ]]
           IFS=',' read -ra denied_hosts <<< "${HERMES_PRODUCTION_HOST_DENYLIST:-}"
           for denied_host in "${denied_hosts[@]}"; do
             [[ -z "$denied_host" || "$host" != "${denied_host,,}" ]]

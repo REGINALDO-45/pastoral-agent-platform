@@ -1,5 +1,7 @@
 # THÁNOS — M19 Hermes Controlled Sandbox Rollout
 
+> Nota de reconciliação (2026-09-02): o contrato histórico `/v1/agent/respond` descrito abaixo foi substituído pelo endpoint oficial `/v1/chat/completions`. O estado atual está em `M19_HERMES_REAL_API_RECONCILIATION.md`.
+
 ## Classificação final
 
 > **M19 BLOQUEADO — DECISÃO HUMANA NECESSÁRIA**
@@ -35,7 +37,7 @@ Os arquivos funcionais do M19 são `server/_core/env.ts`, `server/pastoral/gatew
 
 | Fronteira | Regra efetiva |
 | --- | --- |
-| Endpoint de geração | URL-base server-side configurada + caminho relativo fixo `v1/agent/respond` |
+| Endpoint de geração | Histórico/supersedido: `v1/agent/respond`; atual: `v1/chat/completions` |
 | Endpoint de saúde | URL-base server-side configurada + caminho relativo fixo `health` |
 | Método de geração | `POST` |
 | Método de saúde | `GET` |
