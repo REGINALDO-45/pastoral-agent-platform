@@ -226,8 +226,8 @@ async function run() {
 
   const health = await gateway.testHermesConnection(SYNTHETIC_CONTEXT);
   const healthAudit = auditByAction(repository, "agent_gateway.hermes_probe");
-  if (!health.connected)
-    throw new LiveProofError(`health_${health.failure ?? "failed"}`);
+  if (health.connection !== "connected")
+    throw new LiveProofError(`health_${health.lastFailure ?? "failed"}`);
 
   const generationStartedAt = performance.now();
   const generated = await gateway.generate({
@@ -355,7 +355,7 @@ async function run() {
         success: true,
         attempts: health.attempts,
         latencyMs: health.latencyMs,
-        failure: health.failure,
+        failure: health.lastFailure,
         requestId: healthAudit?.requestId ?? null,
       },
       generation: {

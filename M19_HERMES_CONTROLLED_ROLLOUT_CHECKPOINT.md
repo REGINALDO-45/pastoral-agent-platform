@@ -2,6 +2,8 @@
 
 > Nota de reconciliação (2026-09-02): o contrato histórico `/v1/agent/respond` descrito abaixo foi substituído pelo endpoint oficial `/v1/chat/completions`. O estado atual está em `M19_HERMES_REAL_API_RECONCILIATION.md`.
 
+> Atualização operacional (2026-09-05): a classificação histórica abaixo foi superada pela prova real aprovada e pela classificação atual registradas em `M19_HERMES_REAL_API_RECONCILIATION.md`.
+
 ## Classificação final
 
 > **M19 BLOQUEADO — DECISÃO HUMANA NECESSÁRIA**
