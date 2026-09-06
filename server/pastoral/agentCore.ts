@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { ModelRouter, type ModelGenerationInput, type ModelGenerationResult } from "./modelRouter";
 import { assertToolExecutionPermission, ToolUnavailableError } from "./policy";
+import { buildSafeExternalEvidence } from "./safeExternalEvidence";
 import { getToolCatalogEntry } from "./toolCatalog";
 import { getTenantToolCatalog } from "./tenantToolConfig";
 import { chooseReadTool, executeReadTool, extractVisitorName, isFollowupIntent, isOrganizationCountIntent } from "./toolRegistry";
@@ -129,9 +130,21 @@ export class AgentCore {
       }
       throw error;
     }
+    const safeEvidence = buildSafeExternalEvidence(toolResult);
+    if (!safeEvidence) {
+      // Fail closed: sem uma projeção explicitamente allowlisted e livre de PII para esta
+      // ferramenta, nenhum provider externo (Hermes/OpenRouter/OpenAI/Anthropic/Gemini) é
+      // chamado. A utilidade é preservada respondendo com o resumo determinístico local,
+      // que só é entregue ao usuário já autorizado para este tenant/workspace.
+      const content = toolResult.summary;
+      await this.repository.appendMessage({ conversationId, context, role: "assistant", content, model: "pastoral-rules-v1", tool });
+      await this.repository.audit({ context, action: "agent.respond", agent: AGENT_NAME, model: "pastoral-rules-v1", provider: "deterministic", tool, requestId, result: "no_safe_evidence_projection", confirmationStatus: "not_required", status: "success" });
+      return { content, provider: "deterministic", model: "pastoral-rules-v1", tool, requestId, confirmationStatus: "not_required" };
+    }
+
     const model = await (input.modelGenerator ?? this.modelRouter).generate({
       system: "Você é um assistente pastoral. Responda em português, de forma objetiva, usando exclusivamente a evidência fornecida. Não invente dados, não exponha dados de outra organização e não revele raciocínio interno.",
-      user: `Pergunta: ${message}\n\nEvidência da ferramenta ${tool}: ${JSON.stringify(toolResult.data)}`,
+      user: `Pergunta: ${message}\n\nEvidência autorizada da ferramenta ${tool}: ${safeEvidence.text}`,
       fallback: toolResult.summary,
     });
 

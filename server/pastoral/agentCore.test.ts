@@ -2,28 +2,72 @@ import { describe, expect, it } from "vitest";
 import { AgentCore } from "./agentCore";
 import { AuthorizationError } from "./policy";
 import { pastoralToolCatalog } from "./toolCatalog";
+import type { ModelGenerationInput, ModelGenerationResult } from "./modelRouter";
 import type { PastoralRepository, TenantContext, ToolCatalogEntry, ToolResult } from "./types";
 import { createVoiceHistoryEntry, VOICE_HISTORY_LABEL } from "./voiceUploadRoute";
 
 const context: TenantContext = { organizationId: 1, organizationName: "Igreja Demonstração A", userId: 1, userName: "Pastor Samuel", role: "pastor" };
+
+const PII_VISITOR_NAME_DO_NOT_SEND = "PII_VISITOR_NAME_DO_NOT_SEND";
+const PII_LEADER_NAME_DO_NOT_SEND = "PII_LEADER_NAME_DO_NOT_SEND";
+const PII_ATTENTION_NOTE_DO_NOT_SEND = "PII_ATTENTION_NOTE_DO_NOT_SEND";
+const PII_SUPERVISOR_NAME_DO_NOT_SEND = "PII_SUPERVISOR_NAME_DO_NOT_SEND";
+const PII_PERSON_ID_DO_NOT_SEND = 999_001;
 
 class FakeRepository implements PastoralRepository {
   audits: Array<{ action: string; status: string; tool?: string; provider?: string; model?: string; requestId?: string; result?: string; confirmationStatus?: string }> = [];
   messages: Array<{ role: string; content: string; messageType?: string }> = [];
   readTools: string[] = [];
   followups = 0;
-  private summary(tool: ToolResult["tool"]): ToolResult {
-    return { tool, summary: "Resumo autorizado da Igreja Demonstração A.", data: { tenant: "A", count: 2 } };
+  private toolResult(tool: ToolResult["tool"], data: Record<string, unknown>): ToolResult {
+    return { tool, summary: "Resumo autorizado da Igreja Demonstração A.", data };
   }
-  queryCells() { this.readTools.push("consultar_celulas"); return Promise.resolve(this.summary("consultar_celulas")); }
-  queryReports() { this.readTools.push("consultar_relatorios"); return Promise.resolve(this.summary("consultar_relatorios")); }
-  queryAttendance() { this.readTools.push("consultar_presenca"); return Promise.resolve(this.summary("consultar_presenca")); }
-  queryVisitors() { this.readTools.push("consultar_visitantes"); return Promise.resolve(this.summary("consultar_visitantes")); }
-  queryLeaders() { this.readTools.push("consultar_lideres"); return Promise.resolve(this.summary("consultar_lideres")); }
+  queryCells() {
+    this.readTools.push("consultar_celulas");
+    return Promise.resolve(this.toolResult("consultar_celulas", {
+      cells: [{ name: "Célula Alfa", leader: PII_LEADER_NAME_DO_NOT_SEND, supervisor: PII_SUPERVISOR_NAME_DO_NOT_SEND }],
+    }));
+  }
+  queryReports() {
+    this.readTools.push("consultar_relatorios");
+    return Promise.resolve(this.toolResult("consultar_relatorios", {
+      pendingReports: [{ cellName: "Célula Alfa", weekLabel: "2026-W10" }],
+    }));
+  }
+  queryAttendance() {
+    this.readTools.push("consultar_presenca");
+    return Promise.resolve(this.toolResult("consultar_presenca", {
+      meetings: [], heldCount: 1, missed: ["Célula Beta"], lowAttendance: [],
+    }));
+  }
+  queryVisitors() {
+    this.readTools.push("consultar_visitantes");
+    return Promise.resolve({
+      tool: "consultar_visitantes" as const,
+      summary: `Ainda aguardam acompanhamento: **${PII_VISITOR_NAME_DO_NOT_SEND}**.`,
+      data: { visitors: [{ id: PII_PERSON_ID_DO_NOT_SEND, name: PII_VISITOR_NAME_DO_NOT_SEND, followedUp: false }] },
+    });
+  }
+  queryLeaders() {
+    this.readTools.push("consultar_lideres");
+    return Promise.resolve({
+      tool: "consultar_lideres" as const,
+      summary: `Líderes que merecem atenção: **${PII_LEADER_NAME_DO_NOT_SEND}** — ${PII_ATTENTION_NOTE_DO_NOT_SEND}.`,
+      data: { leaders: [{ name: PII_LEADER_NAME_DO_NOT_SEND, attentionNote: PII_ATTENTION_NOTE_DO_NOT_SEND }] },
+    });
+  }
   findVisitor(_context: TenantContext, name: string) { return Promise.resolve(name === "João" ? { id: 21, name: "João", followedUp: false } : null); }
   appendMessage(input: { role: "user" | "assistant"; content: string; messageType?: "text" | "voice" }) { this.messages.push(input); return Promise.resolve(); }
   writeFollowup() { this.followups += 1; return Promise.resolve({ created: this.followups === 1, visitorName: "João" }); }
   audit(input: { action: string; status: "success" | "failure" | "denied"; tool?: string; provider?: string; model?: string; requestId?: string; result?: string; confirmationStatus?: "not_required" | "pending" | "confirmed" | "duplicate" | "denied" | "failed" }) { this.audits.push(input); return Promise.resolve(); }
+}
+
+class SpyModelGenerator {
+  calls: ModelGenerationInput[] = [];
+  async generate(input: ModelGenerationInput): Promise<ModelGenerationResult> {
+    this.calls.push(input);
+    return { content: `Resposta externa sobre: ${input.user}`, provider: "hermes", model: "hermes-pilot" };
+  }
 }
 
 describe("Agent Core pastoral", () => {
@@ -132,5 +176,91 @@ describe("Agent Core pastoral", () => {
 
     expect(repository.readTools).toEqual([]);
     expect(repository.audits).toContainEqual(expect.objectContaining({ action: "agent.tool.execute", status: "denied", tool: "consultar_visitantes" }));
+  });
+
+  describe("proteção de PII pastoral contra provider externo", () => {
+    it("nunca envia PII_VISITOR_NAME_DO_NOT_SEND ao provider externo e responde localmente", async () => {
+      const repository = new FakeRepository();
+      const generator = new SpyModelGenerator();
+      const agent = new AgentCore(repository);
+
+      const result = await agent.respond({ context, conversationId: 4, message: "Quais visitantes precisam de acompanhamento?", requestId: "request-visitantes", modelGenerator: generator });
+
+      expect(generator.calls).toHaveLength(0);
+      expect(repository.readTools).toEqual(["consultar_visitantes"]);
+      expect(result).toMatchObject({ tool: "consultar_visitantes", provider: "deterministic", requestId: "request-visitantes", confirmationStatus: "not_required" });
+      expect(result.content).toContain(PII_VISITOR_NAME_DO_NOT_SEND);
+      expect(repository.audits).toContainEqual(expect.objectContaining({ action: "agent.respond", status: "success", tool: "consultar_visitantes", provider: "deterministic", requestId: "request-visitantes", result: "no_safe_evidence_projection" }));
+    });
+
+    it("nunca envia PII_LEADER_NAME_DO_NOT_SEND nem PII_ATTENTION_NOTE_DO_NOT_SEND ao provider externo e responde localmente", async () => {
+      const repository = new FakeRepository();
+      const generator = new SpyModelGenerator();
+      const agent = new AgentCore(repository);
+
+      const result = await agent.respond({ context, conversationId: 4, message: "Quais líderes precisam de atenção?", requestId: "request-lideres", modelGenerator: generator });
+
+      expect(generator.calls).toHaveLength(0);
+      expect(repository.readTools).toEqual(["consultar_lideres"]);
+      expect(result).toMatchObject({ tool: "consultar_lideres", provider: "deterministic", requestId: "request-lideres" });
+      expect(result.content).toContain(PII_LEADER_NAME_DO_NOT_SEND);
+      expect(result.content).toContain(PII_ATTENTION_NOTE_DO_NOT_SEND);
+    });
+
+    it("envia apenas evidência agregada segura ao provider externo para consultar_celulas, sem PII_LEADER_NAME_DO_NOT_SEND", async () => {
+      const repository = new FakeRepository();
+      const generator = new SpyModelGenerator();
+      const agent = new AgentCore(repository);
+
+      const result = await agent.respond({ context, conversationId: 4, message: "Como estão as células desta semana?", requestId: "request-celulas", modelGenerator: generator });
+
+      expect(generator.calls).toHaveLength(1);
+      const sentPayload = JSON.stringify(generator.calls[0]);
+      expect(sentPayload).not.toContain(PII_LEADER_NAME_DO_NOT_SEND);
+      expect(sentPayload).not.toContain(PII_SUPERVISOR_NAME_DO_NOT_SEND);
+      expect(sentPayload).toContain("Célula Alfa");
+      expect(result.content).toContain("Célula Alfa");
+    });
+
+    it("envia apenas evidência agregada segura ao provider externo para consultar_relatorios", async () => {
+      const repository = new FakeRepository();
+      const generator = new SpyModelGenerator();
+      const agent = new AgentCore(repository);
+
+      await agent.respond({ context, conversationId: 4, message: "Quais relatórios não entregaram?", requestId: "request-relatorios", modelGenerator: generator });
+
+      expect(generator.calls).toHaveLength(1);
+      expect(generator.calls[0].user).toContain("Célula Alfa");
+    });
+
+    it("envia apenas evidência agregada segura ao provider externo para consultar_presenca", async () => {
+      const repository = new FakeRepository();
+      const generator = new SpyModelGenerator();
+      const agent = new AgentCore(repository);
+
+      await agent.respond({ context, conversationId: 4, message: "Quais células realizaram reunião esta semana?", requestId: "request-presenca", modelGenerator: generator });
+
+      expect(generator.calls).toHaveLength(1);
+      expect(generator.calls[0].user).toContain("Célula Beta");
+    });
+
+    it("não reexecuta a ferramenta READ ao decidir não chamar o provider externo", async () => {
+      const repository = new FakeRepository();
+      const generator = new SpyModelGenerator();
+      const agent = new AgentCore(repository);
+
+      await agent.respond({ context, conversationId: 4, message: "Quais visitantes precisam de acompanhamento?", requestId: "request-single-read", modelGenerator: generator });
+
+      expect(repository.readTools).toEqual(["consultar_visitantes"]);
+    });
+
+    it("preserva o requestId informado mesmo no caminho fail-closed", async () => {
+      const repository = new FakeRepository();
+      const agent = new AgentCore(repository);
+
+      const result = await agent.respond({ context, conversationId: 4, message: "Quais líderes precisam de atenção?", requestId: "request-fixed-id" });
+
+      expect(result.requestId).toBe("request-fixed-id");
+    });
   });
 });

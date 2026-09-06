@@ -6,15 +6,28 @@ import type { PastoralRepository, TenantContext, ToolResult } from "./types";
 
 const context: TenantContext = { organizationId: 1, organizationName: "Igreja A", userId: 1, userName: "Pastor", role: "pastor" };
 
+const PII_VISITOR_NAME_DO_NOT_SEND = "PII_VISITOR_NAME_DO_NOT_SEND";
+
 class GatewayRepository implements PastoralRepository {
   audits: Array<{ action: string; metadata?: Record<string, unknown> }> = [];
   messages: Array<{ role: "user" | "assistant" }> = [];
+  queryCellsCalls = 0;
   queryVisitorsCalls = 0;
   failAuditActions = new Set<string>();
-  queryCells() { return Promise.resolve(this.summary("consultar_celulas")); }
+  queryCells() {
+    this.queryCellsCalls += 1;
+    return Promise.resolve({ tool: "consultar_celulas" as const, summary: "Resumo seguro", data: { cells: [{ name: "Célula Alfa" }] } });
+  }
   queryReports() { return Promise.resolve(this.summary("consultar_relatorios")); }
   queryAttendance() { return Promise.resolve(this.summary("consultar_presenca")); }
-  queryVisitors() { this.queryVisitorsCalls += 1; return Promise.resolve(this.summary("consultar_visitantes")); }
+  queryVisitors() {
+    this.queryVisitorsCalls += 1;
+    return Promise.resolve({
+      tool: "consultar_visitantes" as const,
+      summary: `Resumo seguro. Aguardam acompanhamento: ${PII_VISITOR_NAME_DO_NOT_SEND}.`,
+      data: { visitors: [{ id: 1, name: PII_VISITOR_NAME_DO_NOT_SEND, followedUp: false }] },
+    });
+  }
   queryLeaders() { return Promise.resolve(this.summary("consultar_lideres")); }
   findVisitor() { return Promise.resolve(null); }
   appendMessage(input: { role: "user" | "assistant" }) { this.messages.push(input); return Promise.resolve(); }
@@ -44,7 +57,7 @@ describe("Agent Gateway", () => {
       source: "organization",
     }));
 
-    const response = await gateway.respond({ context, conversationId: 5, message: "Quais visitantes chegaram recentemente?", requestId: "request-pilot-1" });
+    const response = await gateway.respond({ context, conversationId: 5, message: "Como estão as células desta semana?", requestId: "request-pilot-1" });
 
     expect(response.gateway).toEqual({ version: "v1", provider: "hermes", fallback: true, fallbackReason: "hermes_unavailable" });
     expect(response.requestId).toBe("request-pilot-1");
@@ -131,7 +144,7 @@ describe("Agent Gateway", () => {
       source: "organization",
     }), hermes);
 
-    const response = await gateway.respond({ context, conversationId: 5, message: "Quais visitantes chegaram recentemente?", requestId: "request-hermes-1" });
+    const response = await gateway.respond({ context, conversationId: 5, message: "Como estão as células desta semana?", requestId: "request-hermes-1" });
 
     expect(response).toMatchObject({ provider: "hermes", model: "hermes-pilot", content: "Resposta Hermes baseada na evidência local.", gateway: { provider: "hermes", fallback: false } });
     expect(repository.audits).toContainEqual(expect.objectContaining({ action: "agent_gateway.hermes_attempt", requestId: "request-hermes-1", metadata: expect.objectContaining({ attempt: 1 }) }));
@@ -157,11 +170,11 @@ describe("Agent Gateway", () => {
       source: "organization",
     }), hermes);
 
-    const response = await gateway.respond({ context, conversationId: 5, message: "Quais visitantes chegaram recentemente?", requestId: "request-audit-outage" });
+    const response = await gateway.respond({ context, conversationId: 5, message: "Como estão as células desta semana?", requestId: "request-audit-outage" });
 
     expect(response).toMatchObject({ provider: "hermes", content: "Resposta Hermes preservada.", gateway: { fallback: false } });
     expect(hermesCalls).toBe(1);
-    expect(repository.queryVisitorsCalls).toBe(1);
+    expect(repository.queryCellsCalls).toBe(1);
     expect(repository.messages.map(message => message.role)).toEqual(["user", "assistant"]);
   });
 
@@ -184,10 +197,35 @@ describe("Agent Gateway", () => {
       source: "organization",
     }), hermes);
 
-    await gateway.respond({ context, conversationId: 5, message: "Quais visitantes chegaram recentemente?", requestId: "legacy-tenant-a-failure" });
-    const responseB = await gateway.respond({ context: tenantB, conversationId: 6, message: "Quais visitantes chegaram recentemente?", requestId: "legacy-tenant-b-success" });
+    await gateway.respond({ context, conversationId: 5, message: "Como estão as células desta semana?", requestId: "legacy-tenant-a-failure" });
+    const responseB = await gateway.respond({ context: tenantB, conversationId: 6, message: "Como estão as células desta semana?", requestId: "legacy-tenant-b-success" });
 
     expect(responseB).toMatchObject({ provider: "hermes", content: "Tenant B continua disponível.", gateway: { fallback: false } });
     expect(hermesCalls).toBe(2);
+  });
+
+  it("nunca chama Hermes para consultar_visitantes mesmo com Hermes configurado e funcional (fail-closed por falta de projeção segura)", async () => {
+    const repository = new GatewayRepository();
+    let hermesCalls = 0;
+    const hermes = new HermesClient(async () => {
+      hermesCalls += 1;
+      return new Response(JSON.stringify(chatCompletion("Não deveria ser usada.")), { status: 200 });
+    }, () => 100, "https://hermes.example/", "secret-not-returned");
+    const gateway = new AgentGateway(repository, new AgentCore(repository), async () => ({
+      enabled: true,
+      provider: "hermes",
+      model: "hermes-pilot",
+      hermesOrganizationIds: [1, 2],
+      hermes: { enabled: true, configured: true, model: "hermes-pilot", timeoutMs: 4_500, retries: 0, circuitFailureThreshold: 3, circuitCooldownMs: 30_000 },
+      fallbackPolicy: "deterministic",
+      source: "organization",
+    }), hermes);
+
+    const response = await gateway.respond({ context, conversationId: 5, message: "Quais visitantes chegaram recentemente?", requestId: "request-visitantes-fail-closed" });
+
+    expect(hermesCalls).toBe(0);
+    expect(repository.queryVisitorsCalls).toBe(1);
+    expect(response.provider).toBe("deterministic");
+    expect(response.content).toContain(PII_VISITOR_NAME_DO_NOT_SEND);
   });
 });
