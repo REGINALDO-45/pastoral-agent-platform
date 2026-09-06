@@ -182,7 +182,7 @@ describe("Agent Core pastoral", () => {
     it("nunca envia PII_VISITOR_NAME_DO_NOT_SEND ao provider externo e responde localmente", async () => {
       const repository = new FakeRepository();
       const generator = new SpyModelGenerator();
-      const agent = new AgentCore(repository);
+      const agent = new AgentCore(repository, undefined, async () => pastoralToolCatalog);
 
       const result = await agent.respond({ context, conversationId: 4, message: "Quais visitantes precisam de acompanhamento?", requestId: "request-visitantes", modelGenerator: generator });
 
@@ -196,7 +196,7 @@ describe("Agent Core pastoral", () => {
     it("nunca envia PII_LEADER_NAME_DO_NOT_SEND nem PII_ATTENTION_NOTE_DO_NOT_SEND ao provider externo e responde localmente", async () => {
       const repository = new FakeRepository();
       const generator = new SpyModelGenerator();
-      const agent = new AgentCore(repository);
+      const agent = new AgentCore(repository, undefined, async () => pastoralToolCatalog);
 
       const result = await agent.respond({ context, conversationId: 4, message: "Quais líderes precisam de atenção?", requestId: "request-lideres", modelGenerator: generator });
 
@@ -210,7 +210,7 @@ describe("Agent Core pastoral", () => {
     it("envia apenas evidência agregada segura ao provider externo para consultar_celulas, sem PII_LEADER_NAME_DO_NOT_SEND", async () => {
       const repository = new FakeRepository();
       const generator = new SpyModelGenerator();
-      const agent = new AgentCore(repository);
+      const agent = new AgentCore(repository, undefined, async () => pastoralToolCatalog);
 
       const result = await agent.respond({ context, conversationId: 4, message: "Como estão as células desta semana?", requestId: "request-celulas", modelGenerator: generator });
 
@@ -225,7 +225,7 @@ describe("Agent Core pastoral", () => {
     it("envia apenas evidência agregada segura ao provider externo para consultar_relatorios", async () => {
       const repository = new FakeRepository();
       const generator = new SpyModelGenerator();
-      const agent = new AgentCore(repository);
+      const agent = new AgentCore(repository, undefined, async () => pastoralToolCatalog);
 
       await agent.respond({ context, conversationId: 4, message: "Quais relatórios não entregaram?", requestId: "request-relatorios", modelGenerator: generator });
 
@@ -236,7 +236,7 @@ describe("Agent Core pastoral", () => {
     it("envia apenas evidência agregada segura ao provider externo para consultar_presenca", async () => {
       const repository = new FakeRepository();
       const generator = new SpyModelGenerator();
-      const agent = new AgentCore(repository);
+      const agent = new AgentCore(repository, undefined, async () => pastoralToolCatalog);
 
       await agent.respond({ context, conversationId: 4, message: "Quais células realizaram reunião esta semana?", requestId: "request-presenca", modelGenerator: generator });
 
@@ -247,7 +247,7 @@ describe("Agent Core pastoral", () => {
     it("não reexecuta a ferramenta READ ao decidir não chamar o provider externo", async () => {
       const repository = new FakeRepository();
       const generator = new SpyModelGenerator();
-      const agent = new AgentCore(repository);
+      const agent = new AgentCore(repository, undefined, async () => pastoralToolCatalog);
 
       await agent.respond({ context, conversationId: 4, message: "Quais visitantes precisam de acompanhamento?", requestId: "request-single-read", modelGenerator: generator });
 
@@ -256,7 +256,7 @@ describe("Agent Core pastoral", () => {
 
     it("preserva o requestId informado mesmo no caminho fail-closed", async () => {
       const repository = new FakeRepository();
-      const agent = new AgentCore(repository);
+      const agent = new AgentCore(repository, undefined, async () => pastoralToolCatalog);
 
       const result = await agent.respond({ context, conversationId: 4, message: "Quais líderes precisam de atenção?", requestId: "request-fixed-id" });
 

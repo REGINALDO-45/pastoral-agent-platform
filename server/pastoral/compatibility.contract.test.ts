@@ -18,15 +18,35 @@ class CompatibilityRepository implements PastoralRepository {
   audits: Array<{ action: string; requestId?: string; result?: string; confirmationStatus?: string; status: string }> = [];
   writes = 0;
 
-  private result(tool: ToolResult["tool"]): ToolResult {
-    return { tool, summary: "Evidência autorizada da igreja atual.", data: { organizationId: context.organizationId, total: 2 } };
+  private result(tool: ToolResult["tool"], data: Record<string, unknown>): ToolResult {
+    return { tool, summary: "Evidência autorizada da igreja atual.", data };
   }
 
-  queryCells() { return Promise.resolve(this.result("consultar_celulas")); }
-  queryReports() { return Promise.resolve(this.result("consultar_relatorios")); }
-  queryAttendance() { return Promise.resolve(this.result("consultar_presenca")); }
-  queryVisitors() { return Promise.resolve(this.result("consultar_visitantes")); }
-  queryLeaders() { return Promise.resolve(this.result("consultar_lideres")); }
+  queryCells() {
+    return Promise.resolve(this.result("consultar_celulas", {
+      cells: [{ name: "Célula Compatibilidade", leader: "Líder Fixture", supervisor: "Supervisor Fixture" }],
+    }));
+  }
+  queryReports() {
+    return Promise.resolve(this.result("consultar_relatorios", {
+      pendingReports: [{ cellName: "Célula Compatibilidade", weekLabel: "2026-W10" }],
+    }));
+  }
+  queryAttendance() {
+    return Promise.resolve(this.result("consultar_presenca", {
+      meetings: [], heldCount: 1, missed: [], lowAttendance: [],
+    }));
+  }
+  queryVisitors() {
+    return Promise.resolve(this.result("consultar_visitantes", {
+      visitors: [{ id: 14, name: "Ana", followedUp: false }],
+    }));
+  }
+  queryLeaders() {
+    return Promise.resolve(this.result("consultar_lideres", {
+      leaders: [{ name: "Líder Fixture", attentionNote: "Nota de exemplo" }],
+    }));
+  }
   findVisitor(_context: TenantContext, name: string) { return Promise.resolve(name === "Ana" ? { id: 14, name: "Ana", followedUp: false } : null); }
   appendMessage(input: { role: "user" | "assistant"; content: string; messageType?: "text" | "voice" }) { this.messages.push(input); return Promise.resolve(); }
   writeFollowup() { this.writes += 1; return Promise.resolve({ created: this.writes === 1, visitorName: "Ana" }); }

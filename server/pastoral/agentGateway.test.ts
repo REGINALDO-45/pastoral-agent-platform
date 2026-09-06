@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { AgentCore } from "./agentCore";
 import { AgentGateway } from "./agentGateway";
 import { HermesClient } from "./hermesClient";
+import { pastoralToolCatalog } from "./toolCatalog";
 import type { PastoralRepository, TenantContext, ToolResult } from "./types";
 
 const context: TenantContext = { organizationId: 1, organizationName: "Igreja A", userId: 1, userName: "Pastor", role: "pastor" };
@@ -47,7 +48,7 @@ function chatCompletion(content: string, model = "hermes-pilot") {
 describe("Agent Gateway", () => {
   it("mantém o Agent Core como fallback seguro e audita requestId", async () => {
     const repository = new GatewayRepository();
-    const gateway = new AgentGateway(repository, new AgentCore(repository), async () => ({
+    const gateway = new AgentGateway(repository, new AgentCore(repository, undefined, async () => pastoralToolCatalog), async () => ({
       enabled: true,
       provider: "hermes",
       model: "hermes-pilot",
@@ -71,7 +72,7 @@ describe("Agent Gateway", () => {
       hermesCalls += 1;
       return new Response(JSON.stringify(chatCompletion("unexpected")), { status: 200 });
     }, () => 100, "https://hermes.example/", "secret-not-returned");
-    const gateway = new AgentGateway(repository, new AgentCore(repository), async () => ({
+    const gateway = new AgentGateway(repository, new AgentCore(repository, undefined, async () => pastoralToolCatalog), async () => ({
       enabled: true,
       provider: "hermes",
       model: "x".repeat(161),
@@ -106,7 +107,7 @@ describe("Agent Gateway", () => {
 
   it("audita teste Hermes sem incluir configurações internas", async () => {
     const repository = new GatewayRepository();
-    const gateway = new AgentGateway(repository, new AgentCore(repository), async () => ({
+    const gateway = new AgentGateway(repository, new AgentCore(repository, undefined, async () => pastoralToolCatalog), async () => ({
       enabled: true,
       provider: "hermes",
       model: "hermes-pilot",
@@ -134,7 +135,7 @@ describe("Agent Gateway", () => {
       "https://hermes.example/",
       "secret-not-returned",
     );
-    const gateway = new AgentGateway(repository, new AgentCore(repository), async () => ({
+    const gateway = new AgentGateway(repository, new AgentCore(repository, undefined, async () => pastoralToolCatalog), async () => ({
       enabled: true,
       provider: "hermes",
       model: "hermes-pilot",
@@ -160,7 +161,7 @@ describe("Agent Gateway", () => {
       hermesCalls += 1;
       return new Response(JSON.stringify(chatCompletion("Resposta Hermes preservada.")), { status: 200 });
     }, () => 100, "https://hermes.example/", "secret-not-returned");
-    const gateway = new AgentGateway(repository, new AgentCore(repository), async () => ({
+    const gateway = new AgentGateway(repository, new AgentCore(repository, undefined, async () => pastoralToolCatalog), async () => ({
       enabled: true,
       provider: "hermes",
       model: "hermes-pilot",
@@ -187,7 +188,7 @@ describe("Agent Gateway", () => {
       if (hermesCalls === 1) throw new Error("tenant A offline");
       return new Response(JSON.stringify(chatCompletion("Tenant B continua disponível.")), { status: 200 });
     }, () => 100, "https://hermes.example/", "secret-not-returned");
-    const gateway = new AgentGateway(repository, new AgentCore(repository), async () => ({
+    const gateway = new AgentGateway(repository, new AgentCore(repository, undefined, async () => pastoralToolCatalog), async () => ({
       enabled: true,
       provider: "hermes",
       model: "hermes-pilot",
@@ -211,7 +212,7 @@ describe("Agent Gateway", () => {
       hermesCalls += 1;
       return new Response(JSON.stringify(chatCompletion("Não deveria ser usada.")), { status: 200 });
     }, () => 100, "https://hermes.example/", "secret-not-returned");
-    const gateway = new AgentGateway(repository, new AgentCore(repository), async () => ({
+    const gateway = new AgentGateway(repository, new AgentCore(repository, undefined, async () => pastoralToolCatalog), async () => ({
       enabled: true,
       provider: "hermes",
       model: "hermes-pilot",
