@@ -29,3 +29,13 @@
 | Tendências do Dashboard | Definir período padrão, timezone de negócio e base mínima para comparação. |
 | n8n | Aprovar eventos, destino, assinatura e política de retentativa antes de habilitar qualquer workflow. |
 | Ampliação do piloto THÁNOS | Avaliar novos planos READ somente após evidência de compatibilidade, telemetria e rollback; escrita, voz e ferramentas sensíveis ficam fora da rota. |
+
+
+## 2026-09-30 — Modernização OpenAI
+
+- O provider `openai` do `ModelRouter` usa a Responses API.
+- O default é `gpt-6.1-sol` com `OPENAI_REASONING_EFFORT=low` quando nenhum override é fornecido.
+- `gpt-6-astra` é reservado para override explícito em tarefas de alto risco/complexidade.
+- OpenRouter, Anthropic, Gemini e fallback determinístico permanecem independentes.
+- Falha do provider continua caindo para resposta determinística; a troca de modelo não amplia autorização, tenant scope ou catálogo de ferramentas.
+- Decisions API e Agents API permanecem opt-in/piloto até prova de benefício e segurança.
