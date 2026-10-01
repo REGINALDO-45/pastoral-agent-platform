@@ -127,6 +127,16 @@ export class ModelRouter {
 
         if (explicitResponsesUrl || !configuration.baseUrl) {
           const endpoint = explicitResponsesUrl || "https://api.openai.com/v1/responses";
+          const explicitReasoning = explicitOpenAIReasoningEffort();
+          const reasoningEffort = configuration.model ? explicitReasoning : openAIReasoningEffort();
+          const body: Record<string, unknown> = {
+            model,
+            instructions: input.system,
+            input: input.user,
+            store: false,
+          };
+          if (reasoningEffort) body.reasoning = { effort: reasoningEffort };
+
           const payload = await readJson(
             await fetch(endpoint, {
               method: "POST",
@@ -134,13 +144,7 @@ export class ModelRouter {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${configuration.apiKey}`,
               },
-              body: JSON.stringify({
-                model,
-                instructions: input.system,
-                input: input.user,
-                reasoning: { effort: openAIReasoningEffort() },
-                store: false,
-              }),
+              body: JSON.stringify(body),
             }),
           );
           const content = extractOpenAIResponseText(payload);
