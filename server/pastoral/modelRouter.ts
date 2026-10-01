@@ -105,28 +105,55 @@ export class ModelRouter {
 
     try {
       if (configuration.provider === "openai") {
-        const endpoint =
-          configuration.baseUrl ?? "https://api.openai.com/v1/responses";
         const model = configuration.model ?? "gpt-6.1-sol";
-        const payload = await readJson(
-          await fetch(endpoint, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${configuration.apiKey}`,
-            },
-            body: JSON.stringify({
-              model,
-              instructions: input.system,
-              input: input.user,
-              reasoning: { effort: openAIReasoningEffort() },
-              store: false,
+        const explicitResponsesUrl = process.env.OPENAI_RESPONSES_URL?.trim();
+
+        if (explicitResponsesUrl || !configuration.baseUrl) {
+          const endpoint = explicitResponsesUrl || "https://api.openai.com/v1/responses";
+          const payload = await readJson(
+            await fetch(endpoint, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${configuration.apiKey}`,
+              },
+              body: JSON.stringify({
+                model,
+                instructions: input.system,
+                input: input.user,
+                reasoning: { effort: openAIReasoningEffort() },
+                store: false,
+              }),
             }),
-          }),
-        );
-        const content = extractOpenAIResponseText(payload);
-        if (content) {
-          return { content, provider: "openai", model };
+          );
+          const content = extractOpenAIResponseText(payload);
+          if (content) {
+            return { content, provider: "openai", model };
+          }
+        } else {
+          // Preserve legacy/custom OpenAI-compatible Chat Completions endpoints.
+          // They may not implement the Responses contract yet.
+          const payload = await readJson(
+            await fetch(configuration.baseUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${configuration.apiKey}`,
+              },
+              body: JSON.stringify({
+                model,
+                messages: [
+                  { role: "system", content: input.system },
+                  { role: "user", content: input.user },
+                ],
+                reasoning_effort: openAIReasoningEffort(),
+              }),
+            }),
+          );
+          const content = payload.choices?.[0]?.message?.content;
+          if (typeof content === "string" && content.trim()) {
+            return { content, provider: "openai", model };
+          }
         }
       }
 
