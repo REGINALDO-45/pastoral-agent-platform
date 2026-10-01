@@ -93,6 +93,41 @@ describe("ModelRouter OpenAI", () => {
     });
   });
 
+  it("keeps a configured legacy OpenAI endpoint on the Chat Completions contract", async () => {
+    vi.stubEnv("AGENT_PROVIDER", "openai");
+    vi.stubEnv("OPENAI_API_KEY", "fixture-key");
+    vi.stubEnv("OPENAI_BASE_URL", "https://fixture.example/v1/chat/completions");
+
+    const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      expect(url).toBe("https://fixture.example/v1/chat/completions");
+      const body = JSON.parse(String(init?.body));
+      expect(body).toMatchObject({
+        model: "gpt-6.1-sol",
+        reasoning_effort: "low",
+        messages: [
+          { role: "system", content: "system" },
+          { role: "user", content: "user" },
+        ],
+      });
+      expect(body).not.toHaveProperty("input");
+
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: "Compatível" } }] }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      new ModelRouter().generate({ system: "system", user: "user", fallback: "fallback" }),
+    ).resolves.toEqual({
+      content: "Compatível",
+      provider: "openai",
+      model: "gpt-6.1-sol",
+    });
+  });
+
   it("falls back deterministically when OpenAI is unavailable", async () => {
     vi.stubEnv("AGENT_PROVIDER", "openai");
     vi.stubEnv("OPENAI_API_KEY", "fixture-key");
