@@ -121,6 +121,35 @@ describe("ModelRouter OpenAI", () => {
     });
   });
 
+  it("omits reasoning for an explicit non-reasoning model on the official Responses endpoint", async () => {
+    vi.stubEnv("AGENT_PROVIDER", "openai");
+    vi.stubEnv("OPENAI_API_KEY", "fixture-key");
+    vi.stubEnv("OPENAI_MODEL", "gpt-4o-mini");
+
+    const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body));
+      expect(body.model).toBe("gpt-4o-mini");
+      expect(body).not.toHaveProperty("reasoning");
+
+      return new Response(
+        JSON.stringify({
+          output: [{ content: [{ type: "output_text", text: "Compatível sem reasoning" }] }],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      new ModelRouter().generate({ system: "system", user: "user", fallback: "fallback" }),
+    ).resolves.toEqual({
+      content: "Compatível sem reasoning",
+      provider: "openai",
+      model: "gpt-4o-mini",
+    });
+  });
+
   it("keeps a configured legacy OpenAI endpoint on the Chat Completions contract", async () => {
     vi.stubEnv("AGENT_PROVIDER", "openai");
     vi.stubEnv("OPENAI_API_KEY", "fixture-key");
