@@ -120,8 +120,10 @@ export class ModelRouter {
 
     try {
       if (configuration.provider === "openai") {
-        const model = configuration.model ?? "gpt-6.1-sol";
         const explicitResponsesUrl = process.env.OPENAI_RESPONSES_URL?.trim();
+        const model =
+          configuration.model ??
+          (explicitResponsesUrl || !configuration.baseUrl ? "gpt-6.1-sol" : "gpt-4o-mini");
 
         if (explicitResponsesUrl || !configuration.baseUrl) {
           const endpoint = explicitResponsesUrl || "https://api.openai.com/v1/responses";
