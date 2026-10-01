@@ -167,6 +167,7 @@ describe("ModelRouter OpenAI", () => {
       });
       expect(body).not.toHaveProperty("input");
       expect(body).not.toHaveProperty("reasoning_effort");
+      expect(body.temperature).toBe(0.2);
 
       return new Response(
         JSON.stringify({ choices: [{ message: { content: "Compatível" } }] }),
@@ -194,6 +195,7 @@ describe("ModelRouter OpenAI", () => {
     const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body));
       expect(body.reasoning_effort).toBe("high");
+      expect(body).not.toHaveProperty("temperature");
       return new Response(
         JSON.stringify({ choices: [{ message: { content: "Compatível com reasoning" } }] }),
         { status: 200, headers: { "content-type": "application/json" } },
