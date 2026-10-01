@@ -80,15 +80,30 @@ function extractOpenAIResponseText(payload: Record<string, any>): string | undef
 
   if (!Array.isArray(payload.output)) return undefined;
 
+  const parts: string[] = [];
   for (const item of payload.output) {
     if (!item || !Array.isArray(item.content)) continue;
     for (const part of item.content) {
       if (part?.type === "output_text" && typeof part.text === "string" && part.text.trim()) {
-        return part.text.trim();
+        parts.push(part.text.trim());
       }
     }
   }
 
+  return parts.length ? parts.join("\n") : undefined;
+}
+
+function explicitOpenAIReasoningEffort(): OpenAIReasoningEffort | undefined {
+  const configured = process.env.OPENAI_REASONING_EFFORT?.trim().toLowerCase();
+  if (
+    configured === "low" ||
+    configured === "medium" ||
+    configured === "high" ||
+    configured === "xhigh" ||
+    configured === "max"
+  ) {
+    return configured;
+  }
   return undefined;
 }
 
@@ -133,6 +148,16 @@ export class ModelRouter {
         } else {
           // Preserve legacy/custom OpenAI-compatible Chat Completions endpoints.
           // They may not implement the Responses contract yet.
+          const legacyBody: Record<string, unknown> = {
+            model,
+            messages: [
+              { role: "system", content: input.system },
+              { role: "user", content: input.user },
+            ],
+          };
+          const explicitReasoning = explicitOpenAIReasoningEffort();
+          if (explicitReasoning) legacyBody.reasoning_effort = explicitReasoning;
+
           const payload = await readJson(
             await fetch(configuration.baseUrl, {
               method: "POST",
@@ -140,14 +165,7 @@ export class ModelRouter {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${configuration.apiKey}`,
               },
-              body: JSON.stringify({
-                model,
-                messages: [
-                  { role: "system", content: input.system },
-                  { role: "user", content: input.user },
-                ],
-                reasoning_effort: openAIReasoningEffort(),
-              }),
+              body: JSON.stringify(legacyBody),
             }),
           );
           const content = payload.choices?.[0]?.message?.content;
