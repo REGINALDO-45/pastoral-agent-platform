@@ -162,7 +162,11 @@ export class ModelRouter {
             ],
           };
           const explicitReasoning = explicitOpenAIReasoningEffort();
-          if (explicitReasoning) legacyBody.reasoning_effort = explicitReasoning;
+          if (explicitReasoning) {
+            legacyBody.reasoning_effort = explicitReasoning;
+          } else {
+            legacyBody.temperature = 0.2;
+          }
 
           const payload = await readJson(
             await fetch(configuration.baseUrl, {
