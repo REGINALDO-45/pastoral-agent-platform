@@ -22,5 +22,9 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
-      - run: pnpm check
-      - run: pnpm test
+      - name: Typecheck
+        run: pnpm check
+      - name: OpenAI model-router unit gate
+        run: pnpm exec vitest run server/pastoral/modelRouter.openai.test.ts
+      # The repository's full integration suite requires a configured test
+      # database and remains an environment-level gate outside this job.
