@@ -130,7 +130,7 @@ describe("ModelRouter OpenAI", () => {
       expect(url).toBe("https://fixture.example/v1/chat/completions");
       const body = JSON.parse(String(init?.body));
       expect(body).toMatchObject({
-        model: "gpt-6.1-sol",
+        model: "gpt-4o-mini",
         messages: [
           { role: "system", content: "system" },
           { role: "user", content: "user" },
@@ -152,7 +152,7 @@ describe("ModelRouter OpenAI", () => {
     ).resolves.toEqual({
       content: "Compatível",
       provider: "openai",
-      model: "gpt-6.1-sol",
+      model: "gpt-4o-mini",
     });
   });
 
