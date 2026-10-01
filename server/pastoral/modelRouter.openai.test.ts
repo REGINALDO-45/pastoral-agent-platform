@@ -54,6 +54,34 @@ describe("ModelRouter OpenAI", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.openai.com/v1/responses");
   });
 
+  it("concatenates every output_text part in Responses order", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          output: [
+            { content: [{ type: "output_text", text: "Primeira parte" }] },
+            { content: [
+              { type: "output_text", text: "Segunda parte" },
+              { type: "output_text", text: "Terceira parte" },
+            ] },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    vi.stubEnv("AGENT_PROVIDER", "openai");
+    vi.stubEnv("OPENAI_API_KEY", "fixture-key");
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      new ModelRouter().generate({ system: "system", user: "user", fallback: "fallback" }),
+    ).resolves.toEqual({
+      content: "Primeira parte\nSegunda parte\nTerceira parte",
+      provider: "openai",
+      model: "gpt-6.1-sol",
+    });
+  });
+
   it("allows explicit higher reasoning effort and model override", async () => {
     vi.stubEnv("AGENT_PROVIDER", "openai");
     vi.stubEnv("OPENAI_API_KEY", "fixture-key");
@@ -103,13 +131,13 @@ describe("ModelRouter OpenAI", () => {
       const body = JSON.parse(String(init?.body));
       expect(body).toMatchObject({
         model: "gpt-6.1-sol",
-        reasoning_effort: "low",
         messages: [
           { role: "system", content: "system" },
           { role: "user", content: "user" },
         ],
       });
       expect(body).not.toHaveProperty("input");
+      expect(body).not.toHaveProperty("reasoning_effort");
 
       return new Response(
         JSON.stringify({ choices: [{ message: { content: "Compatível" } }] }),
@@ -126,6 +154,27 @@ describe("ModelRouter OpenAI", () => {
       provider: "openai",
       model: "gpt-6.1-sol",
     });
+  });
+
+  it("sends reasoning_effort to a legacy endpoint only when explicitly configured", async () => {
+    vi.stubEnv("AGENT_PROVIDER", "openai");
+    vi.stubEnv("OPENAI_API_KEY", "fixture-key");
+    vi.stubEnv("OPENAI_BASE_URL", "https://fixture.example/v1/chat/completions");
+    vi.stubEnv("OPENAI_REASONING_EFFORT", "high");
+
+    const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body));
+      expect(body.reasoning_effort).toBe("high");
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: "Compatível com reasoning" } }] }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      new ModelRouter().generate({ system: "system", user: "user", fallback: "fallback" }),
+    ).resolves.toMatchObject({ content: "Compatível com reasoning", provider: "openai" });
   });
 
   it("falls back deterministically when OpenAI is unavailable", async () => {
